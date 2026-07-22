@@ -1,0 +1,9 @@
+bcrypt
+Django
+django-cors-headers
+djangorestframework
+djangorestframework-simplejwt
+openpyxl
+psycopg2-binary
+python-dotenv
+reportlab

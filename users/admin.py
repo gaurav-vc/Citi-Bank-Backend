@@ -1,0 +1,103 @@
+from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
+
+from .models import User, UserProfile
+
+@admin.register(User)
+class CustomUserAdmin(UserAdmin):
+
+    model = User
+
+    list_display = (
+        'email',
+        'name',
+        'role',
+        'is_staff',
+        'is_active',
+    )
+
+    list_filter = (
+        'role',
+        'is_staff',
+        'is_active',
+    )
+
+    ordering = ('email',)
+
+    search_fields = (
+        'email',
+        'name',
+    )
+
+    fieldsets = (
+        (
+            None,
+            {
+                'fields': (
+                    'email',
+                    'password',
+                )
+            }
+        ),
+
+        (
+            'Personal Info',
+            {
+                'fields': (
+                    'name',
+                    'role',
+                    'department',
+                    'tower',
+                )
+            }
+        ),
+
+        (
+            'Permissions',
+            {
+                'fields': (
+                    'is_active',
+                    'is_staff',
+                    'is_superuser',
+                    'groups',
+                    'user_permissions',
+                )
+            }
+        ),
+    )
+
+    add_fieldsets = (
+        (
+            None,
+            {
+                'classes': ('wide',),
+                'fields': (
+                    'email',
+                    'name',
+                    'role',
+                    'password1',
+                    'password2',
+                    'is_staff',
+                    'is_active',
+                ),
+            },
+        ),
+    )
+
+    filter_horizontal = (
+        'groups',
+        'user_permissions',
+    )
+
+    readonly_fields = ()
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+
+    list_display = (
+        'user',
+        'role_name',
+        'organization_id',
+        'site_id',
+    )

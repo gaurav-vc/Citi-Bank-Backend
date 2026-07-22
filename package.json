@@ -1,0 +1,26 @@
+{
+  "name": "campusspend-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": ".venv\\Scripts\\python manage.py runserver 8000",
+    "dev": ".venv\\Scripts\\python manage.py runserver 8000"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.2.1",
+    "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "json2csv": "^6.0.0-alpha.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.1.1",
+    "pdfkit": "^0.18.0",
+    "pg": "^8.11.5",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
