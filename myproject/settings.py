@@ -11,7 +11,8 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-klcrg(@$dh+jtk$a0c9c$da3bq
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['*', 'procurement.vibesandbox.live', '127.0.0.1', 'localhost']
+CSRF_TRUSTED_ORIGINS = ['https://procurement.vibesandbox.live', 'http://localhost:8080', 'http://localhost:5173']
 
 # Application definition
 INSTALLED_APPS = [
@@ -108,7 +109,8 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'static'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

@@ -62,11 +62,15 @@ def sync_role_access_mapping(role):
             'approve': rp.can_approve
         }
     
-    RoleAccessMapping.objects.update_or_create(
-        role=role,
-        department=None,
-        defaults={'permissions': perms}
-    )
+    mappings = RoleAccessMapping.objects.filter(role=role, department__isnull=True)
+    if mappings.exists():
+        mapping = mappings.first()
+        mapping.permissions = perms
+        mapping.save()
+        if mappings.count() > 1:
+            mappings.exclude(id=mapping.id).delete()
+    else:
+        RoleAccessMapping.objects.create(role=role, department=None, permissions=perms)
 
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
