@@ -98,3 +98,15 @@ class SiteModuleAccess(models.Model):
         db_table = 'site_module_access'
         unique_together = ('site', 'module_key')
 
+class SubscriptionInvoice(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='subscription_invoices')
+    invoice_number = models.CharField(max_length=100, unique=True)
+    billing_date = models.DateField()
+    due_date = models.DateField()
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    status = models.CharField(max_length=50, default='Pending') # Paid, Overdue, Pending
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'subscription_invoices'
+

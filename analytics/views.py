@@ -117,7 +117,6 @@ class SuperAdminBillingLogsView(APIView):
         if getattr(request.user, 'role', '') != 'super_admin':
             return Response({"error": "Unauthorized"}, status=403)
 
-        # Single query — pull only the columns we need, no Python-level looping over full objects
         orgs = (
             Organization.objects
             .only(
@@ -149,33 +148,42 @@ class SuperAdminBillingLogDetailView(APIView):
     def get(self, request, pk):
         if getattr(request.user, 'role', '') != 'super_admin':
             return Response({"error": "Unauthorized"}, status=403)
-            
+
+        org = Organization.objects.filter(id=pk).first()
+        if not org:
+            return Response({"error": "Organization not found"}, status=404)
+
+        from organizations.models import SubscriptionInvoice
+
         try:
-            inv = Invoice.objects.get(pk=pk)
-        except Invoice.DoesNotExist:
-            return Response({"error": "Not Found"}, status=404)
-            
-        # Fetch detailed workflow history from the invoice object (which inherits WorkflowAbstractModel)
-        # and standard invoice details.
-        
-        workflow_history = getattr(inv, 'workflow_history', [])
-        
+            invoices = SubscriptionInvoice.objects.filter(organization=org).order_by('-billing_date')
+            invoice_history = [
+                {
+                    "invoice_number": inv.invoice_number,
+                    "billing_date": inv.billing_date.isoformat(),
+                    "due_date": inv.due_date.isoformat(),
+                    "amount": float(inv.amount),
+                    "status": inv.status
+                }
+                for inv in invoices
+            ]
+        except Exception:
+            invoice_history = []
+
         data = {
-            "id": inv.id,
-            "invoice_number": inv.invoice_number,
-            "vendor_name": inv.vendor_name,
-            "amount": float(inv.amount or 0),
-            "tax_amount": float(getattr(inv, 'tax_amount', 0)),
-            "total_amount": float(getattr(inv, 'total_amount', 0) or inv.amount or 0),
-            "status": inv.status,
-            "created_at": inv.created_at.isoformat() if inv.created_at else None,
-            "site_id": inv.site_id,
-            "created_by": inv.created_by,
-            "workflow_history": workflow_history,
-            "current_approver": getattr(inv, 'current_approver', None),
-            "approval_level": getattr(inv, 'approval_level', 0),
+            "organization_name": org.company_name or org.legal_name or org.name,
+            "next_billing_amount": float(org.billing_rate or 0),
+            "next_billing_date": org.billing_date.isoformat() if org.billing_date else None,
+            "current_balance_due": sum([float(inv.amount) for inv in invoices if inv.status == 'Overdue']) if 'invoices' in locals() else 0.0,
+            "billing_contact": {
+                "email": org.contact_email or "-",
+                "phone": org.contact_phone or "-"
+            },
+            "tax_id": org.gst_number or org.pan_number or "-",
+            "billing_address": f"{org.address or ''} {org.city or ''}, {org.state or ''} {org.country or ''}".strip(),
+            "invoice_history": invoice_history
         }
-        
+
         return Response(data)
 
 class ReportsDataView(APIView):
