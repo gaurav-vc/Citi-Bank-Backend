@@ -47,7 +47,7 @@ class DashboardMetricsView(APIView):
             # 4. Pending Approvals
             from workflows.models import WorkflowStep
             pending_approvals = WorkflowStep.objects.filter(assigned_role_name=request.user.role, status='pending').count()
-            prev_pending_approvals = WorkflowStep.objects.filter(assigned_role_name=request.user.role, status='pending', created_at__lt=thirty_days_ago).count()
+            prev_pending_approvals = WorkflowStep.objects.filter(assigned_role_name=request.user.role, status='pending', instance__created_at__lt=thirty_days_ago).count()
 
             # 5. Inventory Value
             items = Item.objects.all()
@@ -158,11 +158,11 @@ class DashboardMetricsView(APIView):
             
             banner_stats = {
                 "title": site.name if site else "Campus Procurement",
-                "subtitle": f"Managed Site • {Vendor.objects.filter(is_active=True).count()}+ Active Vendors",
+                "subtitle": f"Managed Site • {Vendor.objects.filter(status__iexact='active').count()}+ Active Vendors",
             }
             if site:
                 active_projects = site.active_projects
-                banner_stats["subtitle"] = f"{active_projects} Projects • {site.city or 'Local'} • {Vendor.objects.filter(is_active=True).count()}+ Active Vendors"
+                banner_stats["subtitle"] = f"{active_projects} Projects • {site.city or 'Local'} • {Vendor.objects.filter(status__iexact='active').count()}+ Active Vendors"
 
             # Dynamic Help/Support configuration based on user's site/org
             support_info = {
