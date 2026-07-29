@@ -524,8 +524,34 @@ def send_workflow_approval_email(user, module_name, document_id, title, portal_l
     from django.utils.html import strip_tags
     from django.conf import settings
     
-    subject = f"Workflow Action Required: {title} ({document_id})"
+    # Determine if it is a CXO email
+    user_role = getattr(user, 'role', '')
+    is_cxo = user_role in ('cxo_citi', 'cxo_emb') or 'cxo' in stage_name.lower()
     
+    # Map module keys to proper singular names
+    module_display_names = {
+        'orders': 'Purchase Order',
+        'invoices': 'Invoice',
+        'payments': 'Payment Proposal',
+        'rfqs': 'Request for Quotation',
+        'indents': 'Indent/Requisition'
+    }
+    display_module_name = module_display_names.get(module_name.lower(), module_name.replace('_', ' ').title().rstrip('s'))
+    
+    if is_cxo:
+        subject = f"Executive Approval Required: {title} ({document_id})"
+        intro = f"""
+        <p>Dear {getattr(user, 'name', getattr(user, 'username', 'Executive'))},</p>
+        <p>All preliminary reviews and required team approvals for the following <strong>{display_module_name}</strong> have been successfully completed.</p>
+        <p>It is now pending your final executive approval in the Procurement Management System.</p>
+        """
+    else:
+        subject = f"Workflow Action Required: {title} ({document_id})"
+        intro = f"""
+        <p>Dear {getattr(user, 'name', getattr(user, 'username', 'Approver'))},</p>
+        <p>A document has been routed to you and is awaiting your review/approval in the Procurement Management System.</p>
+        """
+        
     # Format amount if provided
     amount_str = ""
     if amount is not None:
@@ -540,12 +566,11 @@ def send_workflow_approval_email(user, module_name, document_id, title, portal_l
         button_label = "Open Payment Proposal"
     else:
         button_label = "Open Document"
-            
+
     content_html = f"""
-    <p>Dear {getattr(user, 'name', getattr(user, 'username', 'Approver'))},</p>
-    <p>A document has been routed to you and is awaiting your review/approval in the Procurement Management System.</p>
+    {intro}
     <div style="background-color:#F3F4F6;border:1px solid #E5E7EB;border-radius:6px;padding:15px;margin:20px 0;">
-      <p style="margin:0 0 6px 0;"><strong>Document Type:</strong> {module_name.replace('_', ' ').title()}</p>
+      <p style="margin:0 0 6px 0;"><strong>Document Type:</strong> {display_module_name}</p>
       <p style="margin:0 0 6px 0;"><strong>Document ID:</strong> {document_id}</p>
       <p style="margin:0 0 6px 0;"><strong>Created By:</strong> {created_by}</p>
     """

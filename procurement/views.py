@@ -65,7 +65,7 @@ class IndentViewSet(viewsets.ModelViewSet):
                 return queryset.filter(status='pending_facility_manager')
             elif user.role == 'project_head':
                 return queryset.filter(status='pending_project_head')
-            elif user.role == 'cxo':
+            elif user.role in ('cxo', 'cxo_citi', 'cxo_emb'):
                 return queryset.filter(status__in=['DUAL_CXO_REVIEW', 'WAITING_FOR_CXO_EMB', 'WAITING_FOR_CXO_CITI', 'WAITING_FOR_DUAL_CXO_APPROVAL'])
             elif user.role == 'super_admin':
                 return queryset.exclude(status__in=['draft', 'approved', 'rejected'])
@@ -172,7 +172,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         instance = self._calculate_and_save(serializer)
-        if instance and instance.status != 'draft':
+        # Only email the vendor if the PO is fully approved (e.g., when created directly from an approved RFQ).
+        # Otherwise, the workflow engine will email the vendor upon final internal approval.
+        if instance and instance.status == 'approved':
             import threading
             from utils.email_helper import send_po_creation_email
             threading.Thread(target=send_po_creation_email, args=(instance,)).start()
@@ -641,6 +643,42 @@ class RFQViewSet(viewsets.ModelViewSet):
             
         return queryset
 
+    @action(detail=True, methods=['get'], url_path='live-bids')
+    def live_bids(self, request, pk=None):
+        rfq = self.get_object()
+        from .models import BidLog
+        from django.db.models import Min, Max
+        
+        # We need to calculate ranks and best prices
+        valid_bids = BidLog.objects.filter(rfq_id=rfq.id, status='Valid').order_by('bid_amount' if rfq.bidding_type == 'reverse_auction' else '-bid_amount')
+        
+        current_best = None
+        user_rank = None
+        
+        if rfq.bidding_type == 'reverse_auction':
+            current_best = valid_bids.first().bid_amount if valid_bids.exists() else rfq.reserve_price
+        elif rfq.bidding_type == 'upward_auction':
+            current_best = valid_bids.first().bid_amount if valid_bids.exists() else rfq.reserve_price
+            
+        # Calculate rank for the requesting user (assuming user.email corresponds to vendor email? Or Vendor ID)
+        # Actually, in RFQs the vendor sees their rank based on their Vendor ID. We need the vendor ID.
+        vendor_id = request.query_params.get('vendor_id')
+        if vendor_id:
+            unique_vendors = []
+            for bid in valid_bids:
+                if bid.vendor_id not in unique_vendors:
+                    unique_vendors.append(bid.vendor_id)
+            if vendor_id in unique_vendors:
+                user_rank = unique_vendors.index(vendor_id) + 1
+
+        return Response({
+            'bidding_type': rfq.bidding_type,
+            'current_best': float(current_best) if current_best is not None else None,
+            'user_rank': user_rank,
+            'auction_end_time': rfq.auction_end_time,
+            'total_bids': valid_bids.count()
+        })
+
     @action(detail=False, methods=['get'], url_path='export')
     def export(self, request):
         try:
@@ -717,6 +755,9 @@ class RFQViewSet(viewsets.ModelViewSet):
         rfq_id = self.request.data.get('id')
         if not rfq_id:
             rfq_id = f"RFQ-{int(timezone.now().timestamp())}"
+            
+        if serializer.validated_data.get('bidding_type') is None:
+            serializer.validated_data['bidding_type'] = 'standard'
             
         instance = serializer.save(id=rfq_id, status='draft', created_by=self.request.user.email)
         
@@ -1298,10 +1339,58 @@ class QuotationViewSet(viewsets.ModelViewSet):
         # Make data mutable if it's a QueryDict, otherwise it's just a dict
         data = request.data.copy() if hasattr(request.data, 'copy') else request.data
         
+        
         if 'base_cost' in data and data['base_cost'] is not None:
             data['base_cost'] = round(float(data['base_cost']), 2)
         if 'total_cost' in data and data['total_cost'] is not None:
             data['total_cost'] = round(float(data['total_cost']), 2)
+            
+        # Auction validation logic
+        from .models import BidLog, RFQ
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        rfq_id = data.get('rfq_id')
+        if rfq_id:
+            try:
+                rfq = RFQ.objects.get(id=rfq_id)
+                bid_amount = Decimal(str(data.get('total_cost', 0)))
+                
+                if rfq.auction_end_time and timezone.now() > rfq.auction_end_time:
+                    return Response({"error": "The auction for this RFQ has already closed."}, status=status.HTTP_400_BAD_REQUEST)
+                
+                if rfq.bidding_type == 'minimum_bid' and rfq.reserve_price:
+                    if bid_amount > rfq.reserve_price:
+                        # Log rejected bid
+                        BidLog.objects.create(rfq_id=rfq.id, vendor_id=data.get('vendor_id', ''), vendor_name=data.get('vendor_name', ''), bid_amount=bid_amount, status='Rejected', remarks=f'Exceeded reserve price of {rfq.reserve_price}')
+                        return Response({"error": f"Bid amount exceeds the reserve price of ₹{rfq.reserve_price}."}, status=status.HTTP_400_BAD_REQUEST)
+                
+                elif rfq.bidding_type == 'reverse_auction':
+                    lowest_bid = BidLog.objects.filter(rfq_id=rfq.id, status='Valid').order_by('bid_amount').first()
+                    if lowest_bid and bid_amount >= lowest_bid.bid_amount:
+                        BidLog.objects.create(rfq_id=rfq.id, vendor_id=data.get('vendor_id', ''), vendor_name=data.get('vendor_name', ''), bid_amount=bid_amount, status='Rejected', remarks='Bid not lower than current best.')
+                        return Response({"error": "Your bid must be strictly lower than the current lowest bid."}, status=status.HTTP_400_BAD_REQUEST)
+                        
+                elif rfq.bidding_type == 'upward_auction':
+                    highest_bid = BidLog.objects.filter(rfq_id=rfq.id, status='Valid').order_by('-bid_amount').first()
+                    current_highest = highest_bid.bid_amount if highest_bid else rfq.reserve_price
+                    if current_highest is not None and bid_amount <= current_highest:
+                        BidLog.objects.create(rfq_id=rfq.id, vendor_id=data.get('vendor_id', ''), vendor_name=data.get('vendor_name', ''), bid_amount=bid_amount, status='Rejected', remarks='Bid not higher than current best.')
+                        return Response({"error": "Your bid must be strictly higher than the current highest bid."}, status=status.HTTP_400_BAD_REQUEST)
+                        
+                # Log valid bid
+                BidLog.objects.create(rfq_id=rfq.id, vendor_id=data.get('vendor_id', ''), vendor_name=data.get('vendor_name', ''), bid_amount=bid_amount, status='Valid')
+                
+            except RFQ.DoesNotExist:
+                pass
+            
+        # Check if quotation already exists for this vendor and RFQ, then update instead of create
+        existing_quote = Quotation.objects.filter(rfq_id=rfq_id, vendor_id=data.get('vendor_id')).first()
+        if existing_quote:
+            serializer = self.get_serializer(existing_quote, data=data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
             
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
@@ -1315,14 +1404,20 @@ class QuotationViewSet(viewsets.ModelViewSet):
         if rfq_id:
             try:
                 rfq = RFQ.objects.get(id=rfq_id)
-                rfq.status = 'PROCUREMENT_MANAGER_REVIEW'
-                rfq.save()
-                
-                # Automatically initialize workflow for Procurement Manager review
-                from workflows.models import WorkflowInstance
-                from workflows.engine import initialize_workflow
-                if not WorkflowInstance.objects.filter(module='rfqs', entity_id=str(rfq.id)).exists():
-                    initialize_workflow('rfqs', rfq.id, self.request.user)
+                # For Auctions, we wait until the auction officially closes before advancing workflow
+                if rfq.bidding_type in ['reverse_auction', 'upward_auction']:
+                    if rfq.status == 'published':
+                        rfq.status = 'bidding_open'
+                        rfq.save()
+                else:
+                    rfq.status = 'PROCUREMENT_MANAGER_REVIEW'
+                    rfq.save()
+                    
+                    # Automatically initialize workflow for Procurement Manager review
+                    from workflows.models import WorkflowInstance
+                    from workflows.engine import initialize_workflow
+                    if not WorkflowInstance.objects.filter(module='rfqs', entity_id=str(rfq.id)).exists():
+                        initialize_workflow('rfqs', rfq.id, self.request.user)
             except RFQ.DoesNotExist:
                 pass
 

@@ -49,7 +49,7 @@ class PaymentProposalSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-from .models import Quotation, ItemCategory, BudgetRevisionLog
+from .models import Quotation, ItemCategory, BudgetRevisionLog, BidLog
 
 class QuotationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -70,3 +70,7 @@ class BudgetRevisionLogSerializer(serializers.ModelSerializer):
         model = BudgetRevisionLog
         fields = ['id', 'budget', 'previous_allocation', 'new_allocation', 'updated_by', 'updated_by_name', 'remarks', 'created_at']
 
+class BidLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BidLog
+        fields = '__all__'

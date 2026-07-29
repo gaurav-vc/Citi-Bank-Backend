@@ -11,6 +11,28 @@ from django.utils import timezone
 from datetime import timedelta
 import re
 
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+import os
+
+class FileUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        uploaded_file = request.FILES.get('file')
+        if not uploaded_file:
+            return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        path = default_storage.save(os.path.join('uploads', uploaded_file.name), ContentFile(uploaded_file.read()))
+        file_url = request.build_absolute_uri(default_storage.url(path))
+        
+        return Response({
+            'url': file_url,
+            'name': uploaded_file.name,
+            'size': uploaded_file.size,
+            'type': uploaded_file.content_type
+        })
+
 class DashboardMetricsView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -189,7 +211,7 @@ class DashboardMetricsView(APIView):
                 derived_upsale.append({
                     "title": org.company_name or org.name,
                     "sites": org_sites or 1,
-                    "amount": float(org.billing_rate) if org.billing_rate > 0 else 50000.0,
+                    "amount": float(org.billing_rate) if org.billing_rate else 0.0,
                 })
                 
             company_wise_site = []
@@ -207,15 +229,15 @@ class DashboardMetricsView(APIView):
                     for k, v in conf.items():
                         if v:
                             module_map[k] = module_map.get(k, 0) + 1
-            if not module_map: # if empty, give some realistic looking data based on all sites
-                module_map = {"core:assets": sites.count() or 3, "site_setup:compliance": sites.count() or 2, "core:vendors": sites.count() or 4}
 
             module_wise_site = [{"label": k.split(':')[-1].title(), "value": v} for k, v in module_map.items()]
             
             derived_module_revenue = []
             for k, v in module_map.items():
                 label = k.split(':')[-1].title()
-                val = v * 150000 # Assume each module site adds 150k
+                # Aggregate revenue from sites that have this module enabled
+                # If we don't have a per-module cost, we'll just divide the site's budget or use 0
+                val = 0
                 derived_module_revenue.append({"title": label, "sites": v, "amount": val})
 
             return Response({

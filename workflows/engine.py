@@ -712,6 +712,15 @@ def action_workflow_step(step_id, action_type, user, comments='', justification=
 
         instance.status = 'approved'
         instance.save()
+        
+        # Send PO email to vendor upon final approval
+        if instance.module == 'orders':
+            try:
+                import threading
+                from utils.email_helper import send_po_creation_email
+                threading.Thread(target=send_po_creation_email, args=(doc,)).start()
+            except Exception as e:
+                logger.error(f"Failed to send PO creation email after approval: {e}")
 
     return doc
 

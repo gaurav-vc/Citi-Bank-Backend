@@ -110,3 +110,23 @@ class SubscriptionInvoice(models.Model):
     class Meta:
         db_table = 'subscription_invoices'
 
+class SystemOption(models.Model):
+    category = models.CharField(max_length=100) # e.g. 'solution_type', 'industry', 'billing_term', 'billing_cycle'
+    value = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'system_options'
+        unique_together = ('category', 'value')
+
+class BillingFAQ(models.Model):
+    question = models.CharField(max_length=255)
+    answer = models.TextField()
+    order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'billing_faqs'
+        ordering = ['order']

@@ -80,6 +80,12 @@ class RFQ(WorkflowAbstractModel):
     recommended_quotation_id = models.CharField(max_length=50, blank=True, null=True)
     recommended_vendor_id = models.CharField(max_length=50, blank=True, null=True)
     recommendation_comments = models.TextField(blank=True, null=True)
+    
+    # Advanced Bidding Fields
+    bidding_type = models.CharField(max_length=50, default='standard') # standard, minimum_bid, reverse_auction, upward_auction
+    reserve_price = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    auction_end_time = models.DateTimeField(null=True, blank=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -169,6 +175,19 @@ class Quotation(WorkflowAbstractModel):
 
     class Meta:
         db_table = 'quotations'
+
+
+class BidLog(models.Model):
+    rfq_id = models.CharField(max_length=50)
+    vendor_id = models.CharField(max_length=50)
+    vendor_name = models.CharField(max_length=255)
+    bid_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=50, default='Valid') # Valid, Rejected
+    remarks = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'bid_logs'
 
 
 class ItemCategory(models.Model):
