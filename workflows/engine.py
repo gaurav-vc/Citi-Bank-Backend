@@ -716,9 +716,8 @@ def action_workflow_step(step_id, action_type, user, comments='', justification=
         # Send PO email to vendor upon final approval
         if instance.module == 'orders':
             try:
-                import threading
                 from utils.email_helper import send_po_creation_email
-                threading.Thread(target=send_po_creation_email, args=(doc,)).start()
+                send_po_creation_email(doc)
             except Exception as e:
                 logger.error(f"Failed to send PO creation email after approval: {e}")
 
@@ -751,7 +750,7 @@ def trigger_next_approver_email(step, doc):
         # Override link for CXO roles to point to relevant page with specific base URL
         user_role = getattr(user, 'role', '')
         if user_role in ('cxo_citi', 'cxo_emb') or step.assigned_role_name in ('cxo_citi', 'cxo_emb'):
-            base_url = "http://localhost:8081"
+            base_url = "https://procurement.vibesandbox.live"
             if module_name == 'rfqs':
                 portal_link = f"{base_url}/tendering/rfq"
             elif module_name == 'invoices':

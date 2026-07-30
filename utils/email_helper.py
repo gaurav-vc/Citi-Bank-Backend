@@ -10,8 +10,7 @@ def get_document_link(module, document_id):
     """
     Generates a direct portal link for a document or page.
     """
-    from django.conf import settings
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://procurement.vibesandbox.live').rstrip('/')
+    frontend_url = 'https://procurement.vibesandbox.live'
     
     m_name = module.lower().replace('-', '_').rstrip('s')
     
@@ -381,7 +380,7 @@ def send_vendor_award_notification_email(vendor_email, vendor_name, rfq_id, po_i
     Trigger 4: Vendor Award Email.
     """
     # Build download link pointing to backend PDF endpoint
-    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://procurement.vibesandbox.live')
+    frontend_url = 'https://procurement.vibesandbox.live'
     backend_base = frontend_url.replace(':8080', ':8000').replace(':5173', ':8000').replace(':3000', ':8000')
     download_url = f"{backend_base}/api/orders/{po_id}/download/"
     rfq_url = get_document_link('rfq', rfq_id)
@@ -595,22 +594,20 @@ def send_workflow_approval_email(user, module_name, document_id, title, portal_l
     if not recipient_email:
         raise ValueError("User object must have a valid email attribute.")
         
-    import threading
-    
-    def send_async():
-        try:
-            send_mail(
-                subject=subject,
-                message=plain_message,
-                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'CampusSpend <noreply.procurementdemo@gmail.com>'),
-                recipient_list=[recipient_email],
-                html_message=html_message,
-                fail_silently=True
-            )
-        except Exception as e:
-            logger.error(f"Async email sending failed: {e}")
-            
-    threading.Thread(target=send_async).start()
+    try:
+        send_mail(
+            subject=subject,
+            message=plain_message,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'CampusSpend <noreply.procurementdemo@gmail.com>'),
+            recipient_list=[recipient_email],
+            html_message=html_message,
+            fail_silently=False
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Email sending failed: {e}")
+        raise
 
 
 

@@ -42,7 +42,9 @@ class Command(BaseCommand):
                 'name': 'Inventory',
                 'order': 2,
                 'features': [
+                    {'key': 'procurement:inventory_master', 'label': 'Inventory Settings'},
                     {'key': 'procurement:inventory', 'label': 'Inventory Management'},
+                    {'key': 'procurement:inspections', 'label': 'Quality Inspection'},
                     {'key': 'procurement:grn', 'label': 'GRN Entry'},
                 ]
             },
@@ -51,6 +53,7 @@ class Command(BaseCommand):
                 'order': 3,
                 'features': [
                     {'key': 'procurement:qc', 'label': 'QC & Service Entry'},
+                    {'key': 'procurement:qc_checklists', 'label': 'Quality Inspection Checklists'},
                 ]
             },
             {
@@ -105,9 +108,12 @@ class Command(BaseCommand):
             'procurement:indents',
             'procurement:rfqs',
             'procurement:orders',
+            'procurement:inventory_master',
             'procurement:inventory',
+            'procurement:inspections',
             'procurement:grn',
             'procurement:qc',
+            'procurement:qc_checklists',
             'procurement:billing',
             'procurement:payments',
             'procurement:expenses',
@@ -151,6 +157,9 @@ class Command(BaseCommand):
                 'procurement:inventory': {'view': True, 'create': False, 'edit': False, 'delete': False, 'approve': False},
                 'procurement:expenses': {'view': True, 'create': True, 'edit': True, 'delete': False, 'approve': False},
                 'procurement:items': {'view': True, 'create': False, 'edit': False, 'delete': False, 'approve': False},
+                'procurement:inspections': {'view': True, 'create': True, 'edit': True, 'delete': False, 'approve': False},
+                'procurement:grn': {'view': True, 'create': True, 'edit': True, 'delete': False, 'approve': False},
+                'procurement:qc_checklists': {'view': True, 'create': True, 'edit': True, 'delete': False, 'approve': False},
             },
 
             'store_keeper': {
@@ -159,6 +168,8 @@ class Command(BaseCommand):
                 'procurement:grn': {'view': True, 'create': True, 'edit': True, 'delete': False, 'approve': False},
                 'procurement:items': {'view': True, 'create': False, 'edit': False, 'delete': False, 'approve': False},
                 'procurement:qc': {'view': True, 'create': True, 'edit': True, 'delete': False, 'approve': False},
+                'procurement:inspections': {'view': True, 'create': True, 'edit': True, 'delete': False, 'approve': False},
+                'procurement:qc_checklists': {'view': True, 'create': True, 'edit': True, 'delete': False, 'approve': False},
                 'procurement:expenses': {'view': True, 'create': True, 'edit': True, 'delete': False, 'approve': False},
             },
 

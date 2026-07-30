@@ -100,7 +100,20 @@ class UserSerializer(serializers.ModelSerializer):
                         filtered[perm_key] = perms
                 # Guarantee dashboard even if filter removed it
                 filtered.setdefault('core:dashboard', dashboard_perm)
-                return filtered
+                role_permissions = filtered
+
+        # --- DEBUG DUMP ---
+        try:
+            import json
+            import os
+            debug_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'debug_perms.txt')
+            with open(debug_path, 'w') as f:
+                f.write(f"Role: {obj.role}\n")
+                if site and site.module_configuration:
+                    f.write(f"Site CFG: {json.dumps(site.module_configuration)}\n")
+                f.write(f"Final Perms: {json.dumps(role_permissions, indent=2)}\n")
+        except Exception:
+            pass
+        # ------------------
 
         return role_permissions
-
