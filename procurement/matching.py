@@ -47,14 +47,17 @@ def run_document_match(invoice):
     is_service = po.type in ('service', 'amc')
     
     # 4. Price and Tax checks (Tolerance check: 5% or Max ₹1000)
+    # We only flag if the invoice is HIGHER than the PO. Lower invoices (partial billings) are permitted.
     invoice_val = float(invoice.total_amount)
     po_val = float(po.net_value)
-    diff = abs(invoice_val - po_val)
-    pct_diff = (diff / po_val) * 100 if po_val > 0 else 0
     
-    if diff > 1000.0 or pct_diff > 5.0:
-        checks['price_validation'] = 'FAILED'
-        reasons.append(f"Price discrepancy: Invoice total (₹{invoice_val:,.2f}) deviates from PO value (₹{po_val:,.2f}) beyond tolerance.")
+    if invoice_val > po_val:
+        diff = invoice_val - po_val
+        pct_diff = (diff / po_val) * 100 if po_val > 0 else 0
+        
+        if diff > 1000.0 or pct_diff > 5.0:
+            checks['price_validation'] = 'FAILED'
+            reasons.append(f"Price discrepancy: Invoice total (₹{invoice_val:,.2f}) exceeds PO value (₹{po_val:,.2f}) beyond tolerance.")
 
     if is_service:
         # 2-Way Match Result
