@@ -578,6 +578,19 @@ def send_workflow_approval_email(user, module_name, document_id, title, portal_l
     if amount_str:
         content_html += f'<p style="margin:0 0 6px 0;"><strong>Amount:</strong> {amount_str}</p>'
         
+    # Fetch additional invoice-specific details if it's an invoice
+    if module_name.lower() in ('invoices', 'invoice'):
+        try:
+            from procurement.models import Invoice
+            inv = Invoice.objects.filter(id=document_id).first()
+            if inv:
+                if getattr(inv, 'invoice_number', None):
+                    content_html += f'<p style="margin:0 0 6px 0;"><strong>Invoice No:</strong> {inv.invoice_number}</p>'
+                if getattr(inv, 'po_id', None):
+                    content_html += f'<p style="margin:0 0 6px 0;"><strong>PO Ref:</strong> {inv.po_id}</p>'
+        except Exception:
+            pass
+        
     content_html += f"""
       <p style="margin:0 0 6px 0;"><strong>Current Stage:</strong> {stage_name}</p>
       <p style="margin:0;"><strong>Action Required:</strong> {action_required}</p>

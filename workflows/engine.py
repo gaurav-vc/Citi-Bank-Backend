@@ -744,8 +744,8 @@ def trigger_next_approver_email(step, doc):
         title = f"{module_name[:-1].upper() if module_name.endswith('s') else module_name.upper()} Approval Required"
         
         # Build portal link
-        from utils.email_helper import generate_portal_link
-        portal_link = generate_portal_link(module_name, document_id)
+        from utils.email_helper import get_document_link
+        portal_link = get_document_link(module_name, document_id)
         
         # Override link for CXO roles to point to relevant page with specific base URL
         user_role = getattr(user, 'role', '')

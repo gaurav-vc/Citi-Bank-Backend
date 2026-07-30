@@ -170,8 +170,8 @@ PASSWORD_HASHERS = [
 # Using Resend (smtp.resend.com) as the email provider.
 # Set EMAIL_HOST_PASSWORD to your Resend API key in .env to enable real sending.
 # Falls back to Django console backend (prints to terminal) when not configured.
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'resend')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'gauravkokane420op@gmail.com')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'invd ermi dqzg tvdm')
 
 _smtp_configured = (
     EMAIL_HOST_USER
@@ -182,7 +182,7 @@ _smtp_configured = (
 if _smtp_configured:
     # Real SMTP → actually deliver emails
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.resend.com')
+    EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
     EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
     EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
 else:
@@ -192,6 +192,6 @@ else:
     EMAIL_PORT = 25
     EMAIL_USE_TLS = False
 
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'CampusSpend <onboarding@resend.dev>')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'FIFC Procurement <gauravkokane420op@gmail.com>')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://procurement.vibesandbox.live')
 FRONTEND_BASE_URL = os.getenv('FRONTEND_BASE_URL', 'https://procurement.vibesandbox.live')
