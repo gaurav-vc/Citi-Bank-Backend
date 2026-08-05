@@ -184,7 +184,7 @@ class WorkflowViewSet(viewsets.ModelViewSet):
                     })
             except Exception:
                 pass
-            return Response({"message": "No active workflow for this entity"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"instance": None, "steps": [], "document": None, "message": "No active workflow for this entity"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

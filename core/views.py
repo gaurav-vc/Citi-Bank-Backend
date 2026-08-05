@@ -3,9 +3,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from django.db.models import Sum, Avg, Count, Q
-from procurement.models import PurchaseOrder, Budget, Indent, Invoice
+from procurement.models import PurchaseOrder, Budget, Indent, Invoice, RFQ
 from vendors.models import Vendor, RateContract
-from inventory.models import Item
+from inventory.models import Item, GRN
 from organizations.models import Organization, Site, Department
 from django.utils import timezone
 from datetime import timedelta
@@ -269,14 +269,14 @@ class GlobalSearchView(APIView):
         results = []
 
         # Search Vendors
-        vendors = Vendor.objects.filter(Q(name__icontains=query) | Q(code__icontains=query) | Q(type__icontains=query))[:5]
+        vendors = Vendor.objects.filter(Q(name__icontains=query) | Q(id__icontains=query) | Q(type__icontains=query))[:5]
         for v in vendors:
             results.append({
                 "id": v.id,
                 "type": "Vendor",
                 "title": v.name,
-                "subtitle": f"Code: {v.code} | Type: {v.type}",
-                "url": f"/vendors/{v.id}"
+                "subtitle": f"ID: {v.id} | Type: {v.type.title()}",
+                "url": f"/masters/vendors"
             })
 
         # Search Purchase Orders
@@ -287,7 +287,7 @@ class GlobalSearchView(APIView):
                 "type": "Purchase Order",
                 "title": p.id,
                 "subtitle": f"Vendor: {p.vendor_name} | {p.status.title()}",
-                "url": f"/procurement/po/{p.id}"
+                "url": f"/orders/{p.id}"
             })
 
         # Search Invoices
@@ -309,7 +309,29 @@ class GlobalSearchView(APIView):
                 "type": "Indent",
                 "title": ind.id,
                 "subtitle": f"Category: {ind.category} | {ind.status.title()}",
-                "url": f"/procurement/indent/{ind.id}"
+                "url": f"/indents/{ind.id}"
+            })
+            
+        # Search RFQs
+        rfqs = RFQ.objects.filter(Q(id__icontains=query) | Q(title__icontains=query) | Q(category__icontains=query))[:5]
+        for rfq in rfqs:
+            results.append({
+                "id": rfq.id,
+                "type": "RFQ",
+                "title": rfq.title,
+                "subtitle": f"RFQ ID: {rfq.id} | {rfq.status.title()}",
+                "url": f"/rfqs/{rfq.id}"
+            })
+
+        # Search GRNs
+        grns = GRN.objects.filter(Q(id__icontains=query) | Q(vendor_name__icontains=query) | Q(po_id__icontains=query))[:5]
+        for grn in grns:
+            results.append({
+                "id": grn.id,
+                "type": "GRN",
+                "title": grn.id,
+                "subtitle": f"Vendor: {grn.vendor_name} | PO: {grn.po_id}",
+                "url": f"/grns/{grn.id}"
             })
 
         return Response(results)

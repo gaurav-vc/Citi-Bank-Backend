@@ -18,6 +18,8 @@ class RoleViewSet(viewsets.ModelViewSet):
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated]
 
+    from django.db.models import Q
+
     def get_queryset(self):
         user = self.request.user
         queryset = Role.objects.all()
@@ -27,7 +29,7 @@ class RoleViewSet(viewsets.ModelViewSet):
             org_id = self.request.query_params.get('organization_id')
             site_id = self.request.query_params.get('site_id')
             if org_id:
-                queryset = queryset.filter(organization_id=org_id)
+                queryset = queryset.filter(Q(organization_id=org_id) | Q(organization__isnull=True))
             if site_id:
                 queryset = queryset.filter(site_id=site_id)
         else:

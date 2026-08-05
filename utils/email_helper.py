@@ -538,9 +538,15 @@ def send_workflow_approval_email(user, module_name, document_id, title, portal_l
     display_module_name = module_display_names.get(module_name.lower(), module_name.replace('_', ' ').title().rstrip('s'))
     
     if is_cxo:
+        role_display = "Executive"
+        if user_role == 'cxo_citi':
+            role_display = "CXO Citi Bank"
+        elif user_role == 'cxo_emb':
+            role_display = "CXO Embassy"
+            
         subject = f"Executive Approval Required: {title} ({document_id})"
         intro = f"""
-        <p>Dear {getattr(user, 'name', getattr(user, 'username', 'Executive'))},</p>
+        <p>Dear {role_display},</p>
         <p>All preliminary reviews and required team approvals for the following <strong>{display_module_name}</strong> have been successfully completed.</p>
         <p>It is now pending your final executive approval in the Procurement Management System.</p>
         """
