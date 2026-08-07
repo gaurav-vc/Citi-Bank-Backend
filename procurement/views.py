@@ -1610,7 +1610,7 @@ class BudgetRBACPermission(BasePermission):
         
         # 1. View Permissions
         if view.action in ('list', 'retrieve', 'history'):
-            return role in ('super_admin', 'finance_manager', 'finance_executive', 'cxo', 'project_head', 'facility_manager')
+            return role in ('super_admin', 'client_admin', 'admin', 'finance_manager', 'finance_executive', 'cxo', 'cxo_citi', 'cxo_emb', 'project_head', 'facility_manager', 'procurement_manager', 'procurement_executive')
             
         # 2. Create Permissions
         if view.action == 'create':
@@ -1630,7 +1630,7 @@ class BudgetRBACPermission(BasePermission):
             
         # 6. Export Permissions
         if view.action == 'export':
-            return role in ('super_admin', 'finance_manager', 'finance_executive', 'cxo')
+            return role in ('super_admin', 'client_admin', 'admin', 'finance_manager', 'finance_executive', 'cxo', 'cxo_citi', 'cxo_emb', 'project_head', 'facility_manager', 'procurement_manager', 'procurement_executive')
             
         return False
 
@@ -2031,6 +2031,11 @@ class PaymentProposalViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='eligible-vendors')
     def eligible_vendors(self, request):
         try:
+            from vendors.models import Vendor
+            all_vendors = Vendor.objects.all()
+            data = [{'id': str(v.id), 'name': v.name} for v in all_vendors]
+            
+            # Also include vendors from eligible invoices just in case they were deleted but still have invoices
             used_invoices = set()
             for proposal in PaymentProposal.objects.exclude(status='rejected'):
                 invs = proposal.invoices or []
@@ -2044,7 +2049,12 @@ class PaymentProposalViewSet(viewsets.ModelViewSet):
             eligible_invoices = Invoice.objects.filter(status__in=['approved', 'verified']).exclude(id__in=used_invoices)
             eligible_vendors = eligible_invoices.values('vendor_id', 'vendor_name').distinct()
             
-            data = [{'id': ev['vendor_id'], 'name': ev['vendor_name']} for ev in eligible_vendors]
+            existing_ids = {v.id for v in all_vendors}
+            for ev in eligible_vendors:
+                if str(ev['vendor_id']) not in existing_ids:
+                    data.append({'id': str(ev['vendor_id']), 'name': ev['vendor_name']})
+                    existing_ids.add(str(ev['vendor_id']))
+                    
             return Response(data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
