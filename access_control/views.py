@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
+from django.db.models import Q
 from .models import Role, RoleModulePermission
 from .serializers import RoleSerializer, RoleModulePermissionSerializer
 
@@ -17,8 +18,6 @@ class RoleViewSet(viewsets.ModelViewSet):
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated]
-
-    from django.db.models import Q
 
     def get_queryset(self):
         user = self.request.user
@@ -108,7 +107,24 @@ class RoleViewSet(viewsets.ModelViewSet):
             data.pop('organization_id', None)
             data.pop('site_id', None)
             request._full_data = data
-        return super().update(request, *args, **kwargs)
+        
+        response = super().update(request, *args, **kwargs)
+        
+        # Update department_id mapping
+        department_id = request.data.get('department_id')
+        if department_id is not None:
+            from setups.models import RoleAccessMapping
+            from organizations.models import Department
+            role = self.get_object()
+            if department_id == "":
+                 RoleAccessMapping.objects.filter(role=role, department__isnull=False).delete()
+            else:
+                 dept = Department.objects.filter(id=department_id).first()
+                 if dept:
+                     RoleAccessMapping.objects.filter(role=role, department__isnull=False).delete()
+                     RoleAccessMapping.objects.create(role=role, department=dept)
+                     
+        return response
 
 
 class RoleModulePermissionViewSet(viewsets.ModelViewSet):
@@ -179,10 +195,13 @@ class RoleModulePermissionViewSet(viewsets.ModelViewSet):
             'core:sites', 'core:departments', 'core:roles', 'core:settings', 'core:workflows',
             'procurement:vendors', 'procurement:items', 'procurement:contracts',
             'procurement:budgets', 'procurement:indents', 'procurement:approvals',
-            'procurement:workflows', 'procurement:rfqs', 'procurement:orders',
-            'procurement:inventory', 'procurement:grn', 'procurement:qc',
-            'procurement:billing', 'procurement:payments', 'procurement:expenses',
-            'procurement:reports', 'procurement:ai'
+            'procurement:workflows', 'procurement:rfqs', 'procurement:rfqs_compare', 'procurement:orders',
+            'procurement:inventory', 'procurement:issue_to_site', 'procurement:inventory_transfer', 
+            'procurement:inventory_scrap', 'procurement:inventory_rtv', 'procurement:grn', 'procurement:qc',
+            'procurement:billing', 'procurement:billing_approvals', 'procurement:payments', 
+            'procurement:payments_proposals', 'procurement:payments_utr', 'procurement:expenses',
+            'procurement:reports', 'procurement:reports_spend', 'procurement:reports_inventory', 
+            'procurement:reports_invoice', 'procurement:reports_audit', 'procurement:ai'
         ]
 
         from django.db import transaction
@@ -194,13 +213,13 @@ class RoleModulePermissionViewSet(viewsets.ModelViewSet):
                     role=role,
                     module_key=key,
                     defaults={
-                        'can_view': True,
-                        'can_create': True,
-                        'can_edit': True,
-                        'can_delete': True,
-                        'can_approve': True,
+                        'can_view': False,
+                        'can_create': False,
+                        'can_edit': False,
+                        'can_delete': False,
+                        'can_approve': False,
                     }
                 )
             sync_role_access_mapping(role)
 
-        return Response({"message": f"Successfully synced app routes and granted full permissions for role {role.role_name}."})
+        return Response({"message": f"Successfully synced app routes and initialized permissions for role {role.role_name}."})

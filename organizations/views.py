@@ -128,6 +128,19 @@ class SiteViewSet(viewsets.ModelViewSet):
     serializer_class = SiteSerializer
     permission_classes = [IsAuthenticated, RBACPermission]
 
+    def get_queryset(self):
+        user = self.request.user
+        qs = Site.objects.all()
+        if user.role == 'super_admin':
+            return qs
+        profile = getattr(user, 'profile', None)
+        if profile:
+            if profile.site_id:
+                return qs.filter(id=profile.site_id)
+            elif profile.organization_id:
+                return qs.filter(organization_id=profile.organization_id)
+        return qs.none()
+
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()

@@ -25,6 +25,10 @@ class RBACPermission(BasePermission):
                 return True
 
         view_name = view.__class__.__name__
+
+        # Always allow users to fetch sites (they will be scoped to their profile in get_queryset)
+        if view_name == 'SiteViewSet' and request.method in ('GET', 'HEAD', 'OPTIONS'):
+            return True
         mapping_dict = {
             'VendorViewSet': 'procurement:vendors',
             'ItemViewSet': 'procurement:items',
