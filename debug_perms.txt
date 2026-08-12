@@ -1,6 +1,166 @@
-Role: Test
-Site CFG: {"dashboard": true, "reports:ai": true, "core:dashboard": true, "procurement:grn": true, "reports:reports": true, "procurement:rfqs": true, "procurement:items": true, "reports:dashboard": true, "procurement:orders": true, "procurement:billing": true, "procurement:budgets": true, "procurement:indents": true, "procurement:vendors": true, "procurement:payments": true, "procurement:approvals": true, "procurement:inventory": true, "reports:audit_reports": true, "setup_admin:workflows": true, "reports:invoice_reports": true, "procurement:inventory_rtv": true, "procurement:qc_checklists": true, "reports:inventory_reports": true, "procurement:utr_management": true, "procurement:inventory_issue": true, "procurement:rfqs_comparison": true, "procurement:billing_approvals": true, "procurement:payment_proposals": true, "procurement:inventory_disposal": true, "procurement:inventory_transfer": true}
+Role: site_keeper
 Final Perms: {
+  "core:sites": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "core:users": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:ai": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:qc": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:grn": {
+    "edit": true,
+    "view": true,
+    "create": true,
+    "delete": false,
+    "approve": false
+  },
+  "core:departments": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:rfqs": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:items": {
+    "edit": false,
+    "view": true,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "core:organizations": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:orders": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:billing": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:budgets": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:indents": {
+    "edit": true,
+    "view": true,
+    "create": true,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:reports": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:vendors": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:expenses": {
+    "edit": true,
+    "view": true,
+    "create": true,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:payments": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:contracts": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:inventory": {
+    "edit": false,
+    "view": true,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:workflows": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:inspections": {
+    "edit": true,
+    "view": true,
+    "create": true,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:qc_checklists": {
+    "edit": true,
+    "view": true,
+    "create": true,
+    "delete": false,
+    "approve": false
+  },
+  "procurement:inventory_master": {
+    "edit": false,
+    "view": false,
+    "create": false,
+    "delete": false,
+    "approve": false
+  },
   "core:dashboard": {
     "view": true,
     "create": false,

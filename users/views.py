@@ -19,7 +19,7 @@ class MeView(APIView):
                 from procurement.management.commands.seed_roles import Command
                 cmd = Command()
                 cmd.stdout = type('DummyStdout', (object,), {'write': lambda *a, **k: None})()
-                cmd.style = type('DummyStyle', (object,), {'SUCCESS': lambda *a, **k: a[0] if a else ''})()
+                cmd.style = type('DummyStyle', (object,), {'SUCCESS': lambda *a, **k: a[0] if a else '', 'WARNING': lambda *a, **k: a[0] if a else ''})()
                 cmd.handle()
             except Exception as e:
                 print("[AUTO-SEED ERROR]:", e)

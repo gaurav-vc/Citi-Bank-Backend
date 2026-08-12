@@ -1,4 +1,21 @@
 from rest_framework.views import APIView
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.parsers import MultiPartParser, FormParser
+from .models import DocumentationItem, Notification
+from .serializers import DocumentationItemSerializer, NotificationSerializer
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from django.db.models import Sum, Avg, Count, Q
+from procurement.models import PurchaseOrder, Budget, Indent, Invoice, RFQ
+from vendors.models import Vendor, RateContract
+from rest_framework.views import APIView
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.parsers import MultiPartParser, FormParser
+from .models import DocumentationItem, Notification
+from .serializers import DocumentationItemSerializer, NotificationSerializer
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
@@ -14,6 +31,15 @@ import re
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 import os
+import urllib.request
+import json
+import ssl
+
+class DocumentationViewSet(ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = DocumentationItemSerializer
+    parser_classes = [MultiPartParser, FormParser]
+    queryset = DocumentationItem.objects.all()
 
 class FileUploadView(APIView):
     permission_classes = [IsAuthenticated]
@@ -335,3 +361,59 @@ class GlobalSearchView(APIView):
             })
 
         return Response(results)
+
+class NotificationViewSet(ModelViewSet):
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        notif = self.get_object()
+        notif.is_read = True
+        notif.save()
+        return Response({'status': 'read'})
+
+    @action(detail=False, methods=['post'])
+    def mark_all_read(self, request):
+        self.get_queryset().update(is_read=True)
+        return Response({'status': 'all_read'})
+
+class AIAssistantView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        user_message = request.data.get('message', '')
+        if not user_message:
+            return Response({'error': 'Message is required'}, status=400)
+
+        msg_lower = user_message.lower()
+        # 1. Reject any action verbs
+        action_keywords = ['create', 'make', 'update', 'delete', 'approve', 'reject', 'add', 'remove']
+        if any(keyword in msg_lower for keyword in action_keywords):
+            return Response({'response': 'This feature is coming soon.'})
+
+        # 2. Local Database Scanner (ZERO TOKENS)
+        indents_total = Indent.objects.count()
+        indents_pending = Indent.objects.filter(status='pending').count()
+        pos_total = PurchaseOrder.objects.count()
+        pos_pending = PurchaseOrder.objects.filter(status='pending').count()
+        rfqs_total = RFQ.objects.count()
+        invoices_total = Invoice.objects.count()
+        vendors_total = Vendor.objects.count()
+
+        if 'pending' in msg_lower or 'approval' in msg_lower:
+            reply = f"Scanning Database... Found **{indents_pending} Indents** and **{pos_pending} Purchase Orders** currently pending approval."
+            return Response({'response': reply})
+            
+        elif 'how many' in msg_lower or 'count' in msg_lower or 'total' in msg_lower:
+            reply = f"Scanning Database... Here are the total records:\n- **Indents**: {indents_total}\n- **Purchase Orders**: {pos_total}\n- **RFQs**: {rfqs_total}\n- **Invoices**: {invoices_total}\n- **Vendors**: {vendors_total}"
+            return Response({'response': reply})
+            
+        elif any(keyword in msg_lower for keyword in ['indent', 'po', 'purchase', 'order', 'rfq', 'invoice', 'vendor', 'spend', 'budget']):
+            reply = f"Database Snapshot:\n- Indents (Pending/Total): {indents_pending}/{indents_total}\n- POs (Pending/Total): {pos_pending}/{pos_total}\n- Vendors: {vendors_total}"
+            return Response({'response': reply})
+            
+        else:
+            return Response({'response': 'This feature is coming soon.'})
