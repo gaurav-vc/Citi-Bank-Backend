@@ -11,19 +11,6 @@ class RBACPermission(BasePermission):
         if request.user.role == 'super_admin':
             return True
 
-        # 2. CXO has full visibility but no destructive delete powers
-        if request.user.role in ('cxo', 'cxo_citi', 'cxo_emb'):
-            if request.method == 'DELETE':
-                return False
-            return True
-
-        # 3. admin and client_admin can manage departments for their own site/org
-        #    (site-scoping is enforced in the ViewSet's get_queryset/create)
-        if request.user.role in ('admin', 'client_admin'):
-            view_name = view.__class__.__name__
-            if view_name in ('DepartmentViewSet', 'RoleViewSet'):
-                return True
-
         view_name = view.__class__.__name__
 
         # Always allow users to fetch sites (they will be scoped to their profile in get_queryset)
@@ -117,10 +104,6 @@ def require_permission(feature_key, action):
             if not request.user or not request.user.is_authenticated:
                 return False
             if request.user.role == 'super_admin':
-                return True
-            if request.user.role in ('cxo', 'cxo_citi', 'cxo_emb'):
-                if action == 'delete':
-                    return False
                 return True
             try:
                 role_obj = Role.objects.filter(role_name=request.user.role).first()

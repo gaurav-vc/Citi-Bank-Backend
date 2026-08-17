@@ -191,17 +191,18 @@ class RoleModulePermissionViewSet(viewsets.ModelViewSet):
                     )
 
         MODULE_KEYS = [
-            'core:dashboard', 'core:setup', 'core:users', 'core:organizations',
-            'core:sites', 'core:departments', 'core:roles', 'core:settings', 'core:workflows',
-            'procurement:vendors', 'procurement:items', 'procurement:contracts',
-            'procurement:budgets', 'procurement:indents', 'procurement:approvals',
-            'procurement:workflows', 'procurement:rfqs', 'procurement:rfqs_compare', 'procurement:orders',
-            'procurement:inventory', 'procurement:issue_to_site', 'procurement:inventory_transfer', 
-            'procurement:inventory_scrap', 'procurement:inventory_rtv', 'procurement:grn', 'procurement:qc',
-            'procurement:billing', 'procurement:billing_approvals', 'procurement:payments', 
-            'procurement:payments_proposals', 'procurement:payments_utr', 'procurement:expenses',
-            'procurement:reports', 'procurement:reports_spend', 'procurement:reports_inventory', 
-            'procurement:reports_invoice', 'procurement:reports_audit', 'procurement:ai'
+            'reports:dashboard', 'procurement:indents', 'procurement:rfqs',
+            'procurement:rfqs_comparison', 'procurement:rfqs_vendor', 'procurement:rfqs_quote',
+            'procurement:orders', 'procurement:vendors', 'procurement:approvals',
+            'procurement:items', 'procurement:inventory_master', 'procurement:inventory',
+            'procurement:inspections', 'procurement:grn', 'procurement:inventory_issue',
+            'procurement:inventory_transfer', 'procurement:inventory_disposal', 'procurement:inventory_rtv',
+            'procurement:qc_checklists', 'procurement:billing', 'procurement:billing_approvals',
+            'procurement:payment_proposals', 'procurement:payments', 'procurement:budgets',
+            'reports:reports', 'reports:inventory_reports', 'reports:invoice_reports',
+            'reports:audit_reports', 'reports:ai', 'core:users', 'core:settings',
+            'core:workflows', 'core:departments', 'core:documentation', 'core:organizations',
+            'core:sites'
         ]
 
         from django.db import transaction
@@ -209,7 +210,7 @@ class RoleModulePermissionViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             for key in MODULE_KEYS:
-                RoleModulePermission.objects.update_or_create(
+                RoleModulePermission.objects.get_or_create(
                     role=role,
                     module_key=key,
                     defaults={

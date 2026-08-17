@@ -42,7 +42,7 @@ class DocumentationViewSet(ModelViewSet):
     queryset = DocumentationItem.objects.all()
 
 class FileUploadView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classegeners = [IsAuthenticated]
 
     def post(self, request):
         uploaded_file = request.FILES.get('file')
