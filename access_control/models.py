@@ -51,26 +51,30 @@ class RoleModulePermission(models.Model):
 
 def sync_role_access_mapping(role):
     from setups.models import RoleAccessMapping
-    permissions_list = RoleModulePermission.objects.filter(role=role)
-    perms = {}
-    for rp in permissions_list:
-        perms[rp.module_key] = {
-            'view': rp.can_view,
-            'create': rp.can_create,
-            'edit': rp.can_edit,
-            'delete': rp.can_delete,
-            'approve': rp.can_approve
-        }
+    from django.db import transaction
     
-    mappings = RoleAccessMapping.objects.filter(role=role, department__isnull=True)
-    if mappings.exists():
-        mapping = mappings.first()
+    with transaction.atomic():
+        mappings = RoleAccessMapping.objects.filter(role=role, department__isnull=True)
+        if mappings.exists():
+            mapping = mappings.first()
+            if mappings.count() > 1:
+                RoleAccessMapping.objects.filter(role=role, department__isnull=True).exclude(id=mapping.id).delete()
+        else:
+            mapping = RoleAccessMapping.objects.create(role=role, department=None, permissions={})
+
+        permissions_list = RoleModulePermission.objects.filter(role=role)
+        perms = {}
+        for rp in permissions_list:
+            perms[rp.module_key] = {
+                'view': rp.can_view,
+                'create': rp.can_create,
+                'edit': rp.can_edit,
+                'delete': rp.can_delete,
+                'approve': rp.can_approve
+            }
+        
         mapping.permissions = perms
         mapping.save()
-        if mappings.count() > 1:
-            mappings.exclude(id=mapping.id).delete()
-    else:
-        RoleAccessMapping.objects.create(role=role, department=None, permissions=perms)
 
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
