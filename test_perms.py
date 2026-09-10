@@ -3,26 +3,17 @@ import django
 import sys
 import json
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')
+sys.path.append(r"c:\Users\MC VIP\OneDrive\Desktop\CitiBank\Campusspend\backend")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "myproject.settings")
+django.setup()
 
-try:
-    django.setup()
-except Exception as e:
-    print(f"Failed to setup Django. Error: {e}")
-    sys.exit(1)
+from users.models import User
+from users.serializers import UserSerializer
 
-def test_perms():
-    from users.models import User
-    from users.serializers import UserSerializer
-    
-    # Get a site_keeper user
-    user = User.objects.filter(role='site_keeper').first()
-    if not user:
-        print("No site_keeper user found!")
-        return
-
-    serializer = UserSerializer(user)
-    print(json.dumps(serializer.data.get('permissions'), indent=2))
-
-if __name__ == "__main__":
-    test_perms()
+users = User.objects.all()
+for u in users:
+    if u.role not in ('super_admin', 'admin', 'client_admin'):
+        ser = UserSerializer(u)
+        print(f"User: {u.email} | Role: {u.role}")
+        print("Perms snippet:", json.dumps(ser.data.get('permissions', {})).strip()[:100])
+        print("---")

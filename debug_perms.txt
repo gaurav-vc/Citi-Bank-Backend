@@ -1,172 +1,185 @@
-Role: site_keeper
+Role: cxo_citi
 Final Perms: {
-  "core:sites": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "core:users": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "procurement:ai": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "procurement:qc": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "procurement:grn": {
-    "edit": true,
-    "view": true,
-    "create": true,
-    "delete": false,
-    "approve": false
-  },
-  "core:departments": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "procurement:rfqs": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "procurement:items": {
-    "edit": false,
-    "view": true,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "core:organizations": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
   "procurement:orders": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "procurement:billing": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "procurement:budgets": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "procurement:indents": {
+    "approve": true,
     "edit": true,
-    "view": true,
     "create": true,
-    "delete": false,
-    "approve": false
-  },
-  "procurement:reports": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "procurement:vendors": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "procurement:expenses": {
-    "edit": true,
-    "view": true,
-    "create": true,
-    "delete": false,
-    "approve": false
+    "delete": true,
+    "view": true
   },
   "procurement:payments": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "procurement:contracts": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
   },
   "procurement:inventory": {
-    "edit": false,
-    "view": true,
-    "create": false,
-    "delete": false,
-    "approve": false
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "procurement:approvals": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "core:roles": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "core:workflows": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "procurement:qc": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "procurement:budgets": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "procurement:vendors": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "core:organizations": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "procurement:items": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "procurement:reports": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "core:setup": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "core:users": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
   },
   "procurement:workflows": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
-  },
-  "procurement:inspections": {
+    "approve": true,
     "edit": true,
-    "view": true,
     "create": true,
-    "delete": false,
-    "approve": false
+    "delete": true,
+    "view": true
   },
-  "procurement:qc_checklists": {
+  "procurement:grn": {
+    "approve": true,
     "edit": true,
-    "view": true,
     "create": true,
-    "delete": false,
-    "approve": false
+    "delete": true,
+    "view": true
   },
-  "procurement:inventory_master": {
-    "edit": false,
-    "view": false,
-    "create": false,
-    "delete": false,
-    "approve": false
+  "procurement:contracts": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "core:settings": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "procurement:billing": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "procurement:expenses": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "core:departments": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "procurement:rfqs": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "procurement:indents": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "procurement:ai": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
+  },
+  "core:sites": {
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
   },
   "core:dashboard": {
-    "view": true,
-    "create": false,
-    "edit": false,
-    "modify": false,
-    "cancel": false,
-    "delete": false
+    "approve": true,
+    "edit": true,
+    "create": true,
+    "delete": true,
+    "view": true
   }
 }

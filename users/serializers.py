@@ -45,32 +45,51 @@ class UserSerializer(serializers.ModelSerializer):
         # 1. Start with role-level permissions
         role_permissions = {}
 
-        # Try department-specific mapping first (site admin case)
         profile = getattr(obj, 'profile', None)
         dept = getattr(profile, 'department', None) if profile else None
         site = getattr(profile, 'site', None) if profile else None
 
+        dept_perms = {}
         if dept:
             dept_mapping = RoleAccessMapping.objects.filter(
-                role__role_name=obj.role, department=dept
-            ).first()
+                role__role_name__iexact=obj.role, department=dept
+            ).order_by('-id').first()
             if dept_mapping:
-                role_permissions = dict(dept_mapping.permissions or {})
+                dept_perms = dict(dept_mapping.permissions or {})
 
-        # Fall back to global role mapping
-        if not role_permissions:
+        global_perms = {}
+        global_mapping = RoleAccessMapping.objects.filter(
+            role__role_name__iexact=obj.role, department=None
+        ).order_by('-id').first()
+        
+        # Fallback for CXO exact string mismatch (e.g. user has cxo_emb, role is CXO EMB)
+        if not global_mapping and 'cxo' in (obj.role or '').lower():
             global_mapping = RoleAccessMapping.objects.filter(
-                role__role_name=obj.role, department=None
-            ).first()
-            if global_mapping:
-                role_permissions = dict(global_mapping.permissions or {})
+                role__role_name__icontains='cxo', department=None
+            ).exclude(permissions={}).order_by('-id').first()
+
+        if global_mapping:
+            global_perms = dict(global_mapping.permissions or {})
+
+        # Merge both permission dictionaries using a logical OR
+        all_keys = set(dept_perms.keys()).union(set(global_perms.keys()))
+        for key in all_keys:
+            d_perms = dept_perms.get(key, {})
+            g_perms = global_perms.get(key, {})
+            
+            merged = {}
+            action_keys = set(d_perms.keys()).union(set(g_perms.keys()))
+            for act in action_keys:
+                merged[act] = bool(d_perms.get(act, False) or g_perms.get(act, False))
+                
+            role_permissions[key] = merged
 
         # 2. Always ensure core:dashboard is present so user can see the dashboard
         dashboard_perm = {'view': True, 'create': False, 'edit': False, 'modify': False, 'cancel': False, 'delete': False}
         role_permissions.setdefault('core:dashboard', dashboard_perm)
 
-        # 3. If user is super_admin, cxo, admin, or client_admin — return all permissions without filtering
-        if obj.role in ('super_admin', 'cxo', 'admin', 'client_admin'):
+        # 3. If user is super_admin — return all permissions without filtering
+        if obj.role == 'super_admin':
             return role_permissions
 
         # 4. Intersect with site's module_configuration if user has a site
