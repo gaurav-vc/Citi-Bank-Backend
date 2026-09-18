@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from django.db.models import Q
 from .models import Role, RoleModulePermission
 from .serializers import RoleSerializer, RoleModulePermissionSerializer
+from .permissions import RBACPermission
 
 
 def _get_admin_profile(user):
@@ -17,7 +18,7 @@ def _get_admin_profile(user):
 class RoleViewSet(viewsets.ModelViewSet):
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RBACPermission]
 
     def get_queryset(self):
         user = self.request.user
@@ -90,11 +91,9 @@ class RoleViewSet(viewsets.ModelViewSet):
             from organizations.models import Department
             dept = Department.objects.filter(id=department_id).first()
             if dept:
-                RoleAccessMapping.objects.update_or_create(
-                    role=role,
-                    department=dept,
-                    defaults={}
-                )
+                mapping = RoleAccessMapping.objects.filter(role=role, department=dept).first()
+                if not mapping:
+                    RoleAccessMapping.objects.create(role=role, department=dept)
 
         serializer = self.get_serializer(role)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -130,7 +129,7 @@ class RoleViewSet(viewsets.ModelViewSet):
 class RoleModulePermissionViewSet(viewsets.ModelViewSet):
     queryset = RoleModulePermission.objects.all()
     serializer_class = RoleModulePermissionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RBACPermission]
 
     def get_queryset(self):
         qs = RoleModulePermission.objects.all()
@@ -210,17 +209,18 @@ class RoleModulePermissionViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             for key in MODULE_KEYS:
-                RoleModulePermission.objects.get_or_create(
-                    role=role,
-                    module_key=key,
-                    defaults={
-                        'can_view': False,
-                        'can_create': False,
-                        'can_edit': False,
-                        'can_delete': False,
-                        'can_approve': False,
-                    }
-                )
+                try:
+                    RoleModulePermission.objects.get(role=role, module_key=key)
+                except RoleModulePermission.DoesNotExist:
+                    RoleModulePermission.objects.create(
+                        role=role,
+                        module_key=key,
+                        can_view=False,
+                        can_create=False,
+                        can_edit=False,
+                        can_delete=False,
+                        can_approve=False
+                    )
             sync_role_access_mapping(role)
 
         return Response({"message": f"Successfully synced app routes and initialized permissions for role {role.role_name}."})

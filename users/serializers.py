@@ -92,34 +92,44 @@ class UserSerializer(serializers.ModelSerializer):
         if obj.role == 'super_admin':
             return role_permissions
 
+        # 3.5 STRICT BOUNDARY: Forcefully strip Sites and Organizations from anyone who is not Super Admin
+        super_admin_only_keys = ['core:organizations', 'core:sites']
+        for sa_key in super_admin_only_keys:
+            if sa_key in role_permissions:
+                del role_permissions[sa_key]
+
         # 4. Intersect with site's module_configuration if user has a site
-        if site and site.module_configuration:
-            module_cfg = site.module_configuration  # e.g. { "procurement:vendors": True, ... }
-
-            # Build the allowed feature keys from site module config
-            allowed_keys = set()
-            for cfg_key, is_enabled in module_cfg.items():
-                if is_enabled:
-                    allowed_keys.add(cfg_key)
-                    if ':' in cfg_key:
-                        allowed_keys.add(cfg_key)
-                    else:
-                        # Short key — add both prefixed variants
-                        allowed_keys.add(f'procurement:{cfg_key}')
-                        allowed_keys.add(f'core:{cfg_key}')
-
-            # Always allow dashboard regardless of module_configuration
-            allowed_keys.update({'core:dashboard', 'procurement:dashboard', 'dashboard'})
-
-            # Only filter if there are actual module restrictions configured
-            if allowed_keys and role_permissions:
-                filtered = {}
-                for perm_key, perms in role_permissions.items():
-                    if perm_key in allowed_keys or perm_key == 'core:dashboard':
-                        filtered[perm_key] = perms
-                # Guarantee dashboard even if filter removed it
-                filtered.setdefault('core:dashboard', dashboard_perm)
-                role_permissions = filtered
+        # if site and site.module_configuration:
+        #     module_cfg = site.module_configuration  # e.g. { "procurement:vendors": True, ... }
+        # 
+        #     # Build the allowed feature keys from site module config
+        #     allowed_keys = set()
+        #     for cfg_key, is_enabled in module_cfg.items():
+        #         if is_enabled:
+        #             allowed_keys.add(cfg_key)
+        #             if ':' in cfg_key:
+        #                 allowed_keys.add(cfg_key)
+        #             else:
+        #                 # Short key — add both prefixed variants
+        #                 allowed_keys.add(f'procurement:{cfg_key}')
+        #                 allowed_keys.add(f'core:{cfg_key}')
+        # 
+        #     # Always allow dashboard and core setup pages regardless of module_configuration
+        #     allowed_keys.update({
+        #         'core:dashboard', 'procurement:dashboard', 'dashboard',
+        #         'core:users', 'core:settings', 'core:workflows', 
+        #         'core:departments', 'core:documentation'
+        #     })
+        # 
+        #     # Only filter if there are actual module restrictions configured
+        #     if allowed_keys and role_permissions:
+        #         filtered = {}
+        #         for perm_key, perms in role_permissions.items():
+        #             if perm_key in allowed_keys or perm_key == 'core:dashboard':
+        #                 filtered[perm_key] = perms
+        #         # Guarantee dashboard even if filter removed it
+        #         filtered.setdefault('core:dashboard', dashboard_perm)
+        #         role_permissions = filtered
 
         # --- DEBUG DUMP ---
         try:

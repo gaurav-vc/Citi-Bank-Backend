@@ -43,11 +43,19 @@ class RBACPermission(BasePermission):
             'SiteViewSet': 'core:sites',
             'DepartmentViewSet': 'core:departments',
             'RoleViewSet': 'core:users',
+            'RoleModulePermissionViewSet': 'core:users',
+            'UserViewSet': 'core:users',
+            'UserProfileViewSet': 'core:users',
         }
 
         feature_key = mapping_dict.get(view_name)
         if not feature_key:
             return True
+
+        # Strict boundary: Sites and Organizations are ONLY for Super Admin
+        super_admin_only_keys = ['core:organizations', 'core:sites']
+        if feature_key in super_admin_only_keys and request.user.role != 'super_admin':
+            return False
 
         # Map HTTP method to action
         if request.method in ('GET', 'HEAD', 'OPTIONS'):
@@ -105,6 +113,10 @@ def require_permission(feature_key, action):
                 return False
             if request.user.role == 'super_admin':
                 return True
+            
+            if feature_key in ['core:organizations', 'core:sites']:
+                return False
+                
             try:
                 role_obj = Role.objects.filter(role_name=request.user.role).first()
                 if not role_obj:

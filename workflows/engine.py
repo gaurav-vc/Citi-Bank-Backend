@@ -170,16 +170,6 @@ def initialize_workflow(module_key, entity_id, created_by_user):
                 )
                 raise ValidationError(err_msg)
     
-    # Custom initial statuses for PO workflow
-    if module_key == 'orders':
-        doc.status = 'pending_finance_validation'
-    elif module_key == 'indents':
-        doc.status = 'pending_store_keeper'
-    elif module_key == 'rfqs':
-        doc.status = 'PROCUREMENT_MANAGER_REVIEW'
-    else:
-        doc.status = 'pending_approval'
-        
     doc.approval_level = 1
 
     # Check for existing workflow instance
@@ -192,14 +182,41 @@ def initialize_workflow(module_key, entity_id, created_by_user):
     # Clean old steps
     WorkflowStep.objects.filter(instance=instance).delete()
 
-    # For now, keep the hardcoded approval only. Dynamic configuration to be added later.
-    hardcoded_rules = DEFAULT_WORKFLOWS.get(module_key, [])
+    # Fetch dynamic workflow rules from the database
+    from .models import WorkflowRule
+    from decimal import Decimal
+    from rest_framework.exceptions import ValidationError
+
+    # Helper to determine document value
+    def get_document_amount(document):
+        v = getattr(document, 'net_value', None)
+        if v is None: v = getattr(document, 'total_value', None)
+        if v is None: v = getattr(document, 'estimated_cost', None)
+        if v is None: v = getattr(document, 'total_amount', Decimal('0.00'))
+        return Decimal(str(v)) if v else Decimal('0.00')
+
+    doc_amount = get_document_amount(doc)
+    
+    db_rules = WorkflowRule.objects.filter(module=module_key).order_by('step_sequence')
     raw_steps = []
-    for idx, rule in enumerate(hardcoded_rules):
+    
+    if not db_rules.exists():
+        raise ValidationError(f"No workflow configured for {module_key}. Please contact the administrator.")
+
+    filtered_rules = [
+        rule for rule in db_rules 
+        if Decimal(str(rule.min_amount)) <= doc_amount <= Decimal(str(rule.max_amount))
+    ]
+    
+    if not filtered_rules:
+        # Option B: Block submission if no workflow covers this amount
+        raise ValidationError(f"No workflow configured for document amount ₹{doc_amount:,.2f} in {module_key}. Please contact the administrator.")
+        
+    for rule in filtered_rules:
         raw_steps.append({
-            'role': rule['role'],
-            'sla': rule['sla'],
-            'sequence': idx + 1
+            'role': rule.required_role_name,
+            'sla': rule.sla_hours,
+            'sequence': rule.step_sequence
         })
 
     # Validation to ensure users exist for all required roles in the workflow
@@ -248,9 +265,11 @@ def initialize_workflow(module_key, entity_id, created_by_user):
         db_first_step = WorkflowStep.objects.filter(instance=instance, step_sequence=1).first()
         doc.current_approver = db_first_step.assigned_role_name if db_first_step else 'None'
         doc.next_role = steps_to_create[1].assigned_role_name if len(steps_to_create) > 1 else 'None'
+        doc.status = f"pending_{doc.current_approver}" if doc.current_approver != 'None' else 'pending_approval'
     else:
         doc.current_approver = 'None'
         doc.next_role = 'None'
+        doc.status = 'approved'
     
     doc.workflow_history = [{
         'user': created_by_user.email,
@@ -354,189 +373,36 @@ def action_workflow_step(step_id, action_type, user, comments='', justification=
         doc.workflow_history = []
     doc.workflow_history.append(history_entry)
 
-    # Specific workflow logic for RFQs
-    if instance.module == 'rfqs':
-        if action_type == 'reject':
-            if step.assigned_role_name in ('cxo_citi', 'cxo_emb'):
-                # Return workflow to Procurement Manager (sequence 1)
-                pm_step = WorkflowStep.objects.filter(instance=instance, assigned_role_name='procurement_manager').first()
-                if pm_step:
-                    pm_step.status = 'pending'
-                    pm_step.actioned_at = None
-                    pm_step.actioned_by = None
-                    pm_step.comments = None
-                    pm_step.save()
-                    try:
-                        trigger_next_approver_email(pm_step, doc)
-                    except Exception:
-                        pass
-                
-                # Reset other steps to queued
-                WorkflowStep.objects.filter(instance=instance, step_sequence__gt=1).update(
-                    status='queued', actioned_at=None, actioned_by=None, comments=None
-                )
-                
-                doc.status = 'PROCUREMENT_MANAGER_REVIEW'
-                doc.current_approver = 'procurement_manager'
-                doc.next_role = 'facility_manager'
-                doc.approval_level = 1
-                doc.rejection_reason = comments
-                doc.save()
-                
-                instance.status = 'REJECTED'
-                instance.save()
-                return doc
-            else:
-                # Rejecting at lower stages cancels workflow
-                doc.status = 'REJECTED'
-                doc.rejection_reason = comments
-                doc.current_approver = None
-                doc.next_role = None
-                doc.save()
-                instance.status = 'rejected'
-                instance.save()
-                WorkflowStep.objects.filter(instance=instance, status='pending').update(status='cancelled')
-                return doc
+    if action_type == 'send_back':
+        # Return workflow to previous stage dynamically based on sequence
+        prev_seq = step.step_sequence - 1
+        prev_step = WorkflowStep.objects.filter(instance=instance, step_sequence=prev_seq).first()
+        if prev_step:
+            prev_step.status = 'pending'
+            prev_step.actioned_at = None
+            prev_step.actioned_by = None
+            prev_step.comments = None
+            prev_step.save()
+            try:
+                trigger_next_approver_email(prev_step, doc)
+            except Exception:
+                pass
+            
+            doc.approval_level = prev_seq
+            doc.current_approver = prev_step.assigned_role_name
+            doc.status = f"pending_{prev_step.assigned_role_name}"
+        
+        WorkflowStep.objects.filter(instance=instance, step_sequence__gte=step.step_sequence).update(
+            status='queued', actioned_at=None, actioned_by=None, comments=None
+        )
+        doc.save()
+        return doc
 
-        if action_type == 'send_back':
-            if step.assigned_role_name in ('cxo_citi', 'cxo_emb'):
-                # Return workflow to Project Head (sequence 3)
-                ph_step = WorkflowStep.objects.filter(instance=instance, assigned_role_name='project_head').first()
-                if ph_step:
-                    ph_step.status = 'pending'
-                    ph_step.actioned_at = None
-                    ph_step.actioned_by = None
-                    ph_step.comments = None
-                    ph_step.save()
-                    try:
-                        trigger_next_approver_email(ph_step, doc)
-                    except Exception:
-                        pass
-                
-                # Reset CXO steps to queued
-                WorkflowStep.objects.filter(instance=instance, assigned_role_name__in=['cxo_citi', 'cxo_emb']).update(
-                    status='queued', actioned_at=None, actioned_by=None, comments=None
-                )
-                
-                doc.status = 'PROJECT_HEAD_REVIEW'
-                doc.current_approver = 'project_head'
-                doc.next_role = 'None'
-                doc.approval_level = 3
-                doc.save()
-            else:
-                # Return workflow to previous stage
-                prev_seq = step.step_sequence - 1
-                prev_step = WorkflowStep.objects.filter(instance=instance, step_sequence=prev_seq).first()
-                if prev_step:
-                    prev_step.status = 'pending'
-                    prev_step.actioned_at = None
-                    prev_step.actioned_by = None
-                    prev_step.comments = None
-                    prev_step.save()
-                    try:
-                        trigger_next_approver_email(prev_step, doc)
-                    except Exception:
-                        pass
-                    
-                    doc.approval_level = prev_seq
-                    doc.current_approver = prev_step.assigned_role_name
-                    
-                    if prev_step.assigned_role_name == 'procurement_manager':
-                        doc.status = 'PROCUREMENT_MANAGER_REVIEW'
-                    elif prev_step.assigned_role_name == 'facility_manager':
-                        doc.status = 'FACILITY_MANAGER_REVIEW'
-                    elif prev_step.assigned_role_name == 'project_head':
-                        doc.status = 'PROJECT_HEAD_REVIEW'
-                
-                WorkflowStep.objects.filter(instance=instance, step_sequence__gte=step.step_sequence).update(
-                    status='queued', actioned_at=None, actioned_by=None, comments=None
-                )
-                doc.save()
-            return doc
-
-        # Approve transition logic
-        if action_type == 'approve':
-            if step.assigned_role_name == 'procurement_manager':
-                next_step = WorkflowStep.objects.filter(instance=instance, step_sequence=2).first()
-                if next_step:
-                    next_step.status = 'pending'
-                    next_step.save()
-                    try:
-                        trigger_next_approver_email(next_step, doc)
-                    except Exception:
-                        pass
-                doc.status = 'FACILITY_MANAGER_REVIEW'
-                doc.current_approver = 'facility_manager'
-                doc.next_role = 'project_head'
-                doc.approval_level = 2
-                doc.save()
-                return doc
-
-            elif step.assigned_role_name == 'facility_manager':
-                next_step = WorkflowStep.objects.filter(instance=instance, step_sequence=3).first()
-                if next_step:
-                    next_step.status = 'pending'
-                    next_step.save()
-                    try:
-                        trigger_next_approver_email(next_step, doc)
-                    except Exception:
-                        pass
-                doc.status = 'PROJECT_HEAD_REVIEW'
-                doc.current_approver = 'project_head'
-                doc.next_role = 'None'
-                doc.approval_level = 3
-                doc.save()
-                return doc
-
-            elif step.assigned_role_name == 'project_head':
-                # Activate parallel approvals for both CXOs (sequence 4 and 5)
-                cxo_steps = WorkflowStep.objects.filter(instance=instance, assigned_role_name__in=['cxo_citi', 'cxo_emb'])
-                for cs in cxo_steps:
-                    cs.status = 'pending'
-                    cs.due_at = timezone.now() + timezone.timedelta(hours=cs.sla_hours)
-                    cs.save()
-                    try:
-                        trigger_next_approver_email(cs, doc)
-                    except Exception:
-                        pass
-                doc.status = 'DUAL_CXO_REVIEW'
-                doc.current_approver = 'cxo_citi, cxo_emb'
-                doc.next_role = 'None'
-                doc.approval_level = 4
-                doc.save()
-                return doc
-
-            elif step.assigned_role_name in ('cxo_citi', 'cxo_emb'):
-                other_cxo = 'cxo_emb' if step.assigned_role_name == 'cxo_citi' else 'cxo_citi'
-                other_step = WorkflowStep.objects.filter(instance=instance, assigned_role_name=other_cxo).first()
-                
-                if other_step and other_step.status == 'approved':
-                    doc.status = 'AWARD_READY'
-                    doc.current_approver = None
-                    doc.next_role = None
-                    doc.approved_by = f"{other_step.actioned_by.email if other_step.actioned_by else ''}, {user.email}".strip(", ")
-                    doc.approved_at = timezone.now()
-                    doc.save()
-                    instance.status = 'APPROVED_BY_BOTH_CXOS'
-                    instance.save()
-                else:
-                    doc.status = 'WAITING_FOR_DUAL_CXO_APPROVAL'
-                    doc.current_approver = other_cxo
-                    doc.next_role = 'None'
-                    doc.save()
-                    if other_step:
-                        try:
-                            trigger_next_approver_email(other_step, doc)
-                        except Exception:
-                            pass
-                return doc
-
-    # Default transitions for other modules
     if action_type == 'reject':
         if not comments or not comments.strip():
             raise ValueError("Rejection reason is required before submitting the rejection.")
 
-        doc.status = 'rejected'
+        doc.status = 'REJECTED' if instance.module == 'rfqs' else 'rejected'
         doc.rejection_reason = comments
         doc.rejected_by = user.email
         doc.rejected_at = timezone.now()
@@ -544,15 +410,25 @@ def action_workflow_step(step_id, action_type, user, comments='', justification=
         doc.next_role = None
         doc.save()
 
-        instance.status = 'rejected'
+        instance.status = 'REJECTED' if instance.module == 'rfqs' else 'rejected'
         instance.save()
+        
+        try:
+            from core.models import Notification
+            Notification.objects.create(
+                user=instance.created_by,
+                title=f"{instance.module.upper()} Rejected",
+                message=f"Your {instance.module} document ({doc.id}) was rejected by {user.email}. Reason: {comments}",
+                link_url=f"/dashboard"
+            )
+        except Exception as e:
+            logger.error(f"Failed to create rejection notification: {e}")
 
         if instance.module == 'orders':
             if prev_status in ('approved', 'closed', 'vendor_accepted'):
                 update_budget_consumption(doc, 'release')
 
         if instance.module == 'invoices':
-            # Send rejection email notification to the vendor
             try:
                 from utils.email_helper import send_invoice_rejection_email
                 from vendors.models import Vendor
@@ -567,7 +443,6 @@ def action_workflow_step(step_id, action_type, user, comments='', justification=
             except Exception as email_err:
                 logger.error(f"Failed to send invoice rejection email: {str(email_err)}")
 
-            # Add an audit trail entry for the rejection
             try:
                 from vendors.models import AuditLog
                 AuditLog.objects.create(
@@ -683,6 +558,9 @@ def action_workflow_step(step_id, action_type, user, comments='', justification=
             if next_step.assigned_role_name == 'vendor':
                 doc.status = 'approved'
         
+        if instance.module not in ('indents', 'orders'):
+            doc.status = f"pending_{next_step.assigned_role_name}"
+            
         future_step = WorkflowStep.objects.filter(
             instance=instance, 
             step_sequence=next_step.step_sequence + 1
@@ -694,7 +572,9 @@ def action_workflow_step(step_id, action_type, user, comments='', justification=
         except Exception as e:
             logger.error(f"Failed to trigger next approver email: {e}")
     else:
-        if instance.module == 'orders':
+        if instance.module == 'rfqs':
+            doc.status = 'AWARD_READY'
+        elif instance.module == 'orders':
             doc.status = 'approved'
         else:
             doc.status = 'approved'
@@ -712,6 +592,17 @@ def action_workflow_step(step_id, action_type, user, comments='', justification=
 
         instance.status = 'approved'
         instance.save()
+        
+        try:
+            from core.models import Notification
+            Notification.objects.create(
+                user=instance.created_by,
+                title=f"{instance.module.upper()} Approved",
+                message=f"Your {instance.module} document ({doc.id}) has been fully approved.",
+                link_url=f"/dashboard"
+            )
+        except Exception as e:
+            logger.error(f"Failed to create final approval notification: {e}")
         
         # Send PO email to vendor upon final approval
         if instance.module == 'orders':
@@ -775,7 +666,17 @@ def trigger_next_approver_email(step, doc):
             token.set_exp(lifetime=timedelta(seconds=token_lifetime_secs))
             
             portal_link = f"{portal_link}?token={str(token)}"
-        
+        try:
+            from core.models import Notification
+            Notification.objects.create(
+                user=user,
+                title=title,
+                message=f"A {module_name} document ({document_id}) requires your approval.",
+                link_url=portal_link.split('?')[0]  # Store base link in UI
+            )
+        except Exception as e:
+            logger.error(f"Failed to create real-time notification: {e}")
+
         # Extract vendor and amount
         vendor_name = getattr(doc, 'vendor_name', None)
         amount = getattr(doc, 'estimated_cost', 

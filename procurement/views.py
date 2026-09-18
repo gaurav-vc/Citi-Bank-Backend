@@ -946,9 +946,6 @@ class RFQViewSet(viewsets.ModelViewSet):
             rfq.recommended_quotation_id = quotation.id
             rfq.recommended_vendor_id = quotation.vendor_id
             rfq.recommendation_comments = award_summary
-             # Set initial approval status if not already in workflow
-            if rfq.status not in ('PROCUREMENT_MANAGER_REVIEW', 'FACILITY_MANAGER_REVIEW', 'PROJECT_HEAD_REVIEW', 'DUAL_CXO_REVIEW', 'WAITING_FOR_CXO_EMB', 'WAITING_FOR_CXO_CITI', 'APPROVED_BY_BOTH_CXOS', 'po_ready'):
-                rfq.status = 'PROCUREMENT_MANAGER_REVIEW'
             rfq.save()
             
             # Initialize workflow only if not already initialized
@@ -956,6 +953,9 @@ class RFQViewSet(viewsets.ModelViewSet):
             from workflows.engine import initialize_workflow
             if not WorkflowInstance.objects.filter(module='rfqs', entity_id=str(rfq.id)).exists():
                 initialize_workflow('rfqs', rfq.id, request.user)
+            
+            # Refresh RFQ to get the status updated by initialize_workflow
+            rfq.refresh_from_db()
             
             return Response({'message': 'Award finalized and recommendation saved', 'rfq_status': rfq.status})
         except Exception as e:
@@ -1518,10 +1518,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
                         rfq.status = 'bidding_open'
                         rfq.save()
                 else:
-                    rfq.status = 'PROCUREMENT_MANAGER_REVIEW'
-                    rfq.save()
-                    
-                    # Automatically initialize workflow for Procurement Manager review
+                    # Automatically initialize workflow for review
                     from workflows.models import WorkflowInstance
                     from workflows.engine import initialize_workflow
                     if not WorkflowInstance.objects.filter(module='rfqs', entity_id=str(rfq.id)).exists():

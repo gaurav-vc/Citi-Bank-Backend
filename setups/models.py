@@ -27,16 +27,11 @@ class RoleAccessMapping(models.Model):
         unique_together = ('role', 'department')
 
 class InventoryMasterField(models.Model):
-    FIELD_CHOICES = [
-        ('request_type', 'Request Type'),
-        ('budget_head', 'Budget Head'),
-        ('tower', 'Tower'),
-        ('floor', 'Floor'),
-        ('category', 'Category'),
-    ]
-    field_type = models.CharField(max_length=50, choices=FIELD_CHOICES)
+    field_type = models.CharField(max_length=100)
     value = models.CharField(max_length=100)
     label = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True, help_text="Advanced description or instructions for this field")
+    is_mandatory = models.BooleanField(default=False, help_text="Toggle if this option requires strict compliance")
     is_active = models.BooleanField(default=True)
 
     class Meta:

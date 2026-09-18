@@ -34,10 +34,17 @@ class RoleAccessMappingViewSet(viewsets.ModelViewSet):
             return Response({"error": "role_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            mapping, created = RoleAccessMapping.objects.update_or_create(
-                role_id=role_id,
-                defaults={'permissions': permissions_data}
-            )
+            mapping = RoleAccessMapping.objects.filter(role_id=role_id).first()
+            if mapping:
+                mapping.permissions = permissions_data
+                mapping.save(update_fields=['permissions'])
+                created = False
+            else:
+                mapping = RoleAccessMapping.objects.create(
+                    role_id=role_id,
+                    permissions=permissions_data
+                )
+                created = True
             return Response({"message": "Mapping synced successfully", "created": created})
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

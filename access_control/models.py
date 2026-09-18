@@ -54,13 +54,17 @@ def sync_role_access_mapping(role):
     from django.db import transaction
     
     with transaction.atomic():
-        mappings = RoleAccessMapping.objects.filter(role=role, department__isnull=True)
+        mappings = RoleAccessMapping.objects.select_for_update().filter(role=role, department__isnull=True)
         if mappings.exists():
             mapping = mappings.first()
             if mappings.count() > 1:
                 RoleAccessMapping.objects.filter(role=role, department__isnull=True).exclude(id=mapping.id).delete()
         else:
-            mapping = RoleAccessMapping.objects.create(role=role, department=None, permissions={})
+            from django.db import IntegrityError
+            try:
+                mapping = RoleAccessMapping.objects.create(role=role, department=None, permissions={})
+            except IntegrityError:
+                mapping = RoleAccessMapping.objects.get(role=role, department__isnull=True)
 
         permissions_list = RoleModulePermission.objects.filter(role=role)
         perms = {}

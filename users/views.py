@@ -4,6 +4,7 @@ from rest_framework import status, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework_simplejwt.tokens import RefreshToken
+from access_control.permissions import RBACPermission
 from .models import User, UserProfile
 from .serializers import UserSerializer, UserProfileSerializer
 
@@ -14,15 +15,6 @@ class MeView(APIView):
 
     def get(self, request):
         try:
-            # Auto-seed role permissions to ensure latest segregation mappings are active
-            try:
-                from procurement.management.commands.seed_roles import Command
-                cmd = Command()
-                cmd.stdout = type('DummyStdout', (object,), {'write': lambda *a, **k: None})()
-                cmd.style = type('DummyStyle', (object,), {'SUCCESS': lambda *a, **k: a[0] if a else '', 'WARNING': lambda *a, **k: a[0] if a else ''})()
-                cmd.handle()
-            except Exception as e:
-                print("[AUTO-SEED ERROR]:", e)
 
             serializer = UserSerializer(request.user)
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -155,7 +147,7 @@ class RegisterView(APIView):
 class UserProfileViewSet(viewsets.ModelViewSet):
     queryset = UserProfile.objects.all()
     serializer_class = UserProfileSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RBACPermission]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -184,7 +176,7 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RBACPermission]
 
     def get_queryset(self):
         qs = super().get_queryset()
