@@ -10,7 +10,7 @@ def get_document_link(module, document_id):
     """
     Generates a direct portal link for a document or page.
     """
-    frontend_url = 'https://procurement.vibesandbox.live'
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://procurement.vibesandbox.live')
     
     m_name = module.lower().replace('-', '_').rstrip('s')
     
@@ -380,7 +380,7 @@ def send_vendor_award_notification_email(vendor_email, vendor_name, rfq_id, po_i
     Trigger 4: Vendor Award Email.
     """
     # Build download link pointing to backend PDF endpoint
-    frontend_url = 'https://procurement.vibesandbox.live'
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://procurement.vibesandbox.live')
     backend_base = frontend_url.replace(':8080', ':8000').replace(':5173', ':8000').replace(':3000', ':8000')
     download_url = f"{backend_base}/api/orders/{po_id}/download/"
     rfq_url = get_document_link('rfq', rfq_id)

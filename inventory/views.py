@@ -270,16 +270,26 @@ class GRNViewSet(viewsets.ModelViewSet):
                 attachments = po.attachments
 
         formatted_items = []
+        total_received_value = 0.0
+        total_accepted_value = 0.0
+        total_ordered_value = 0.0
+
         for item in grn.items:
             item_name = item.get('item_name') or item.get('itemName') or 'Unknown Item'
-            ordered_qty = item.get('ordered_qty') or item.get('orderedQty') or 0
-            received_qty = item.get('received_qty') or item.get('receivedQty') or 0
-            accepted_qty = item.get('accepted_qty') or item.get('acceptedQty') or 0
-            rejected_qty = item.get('rejected_qty') or item.get('rejectedQty') or 0
+            ordered_qty = float(item.get('ordered_qty') or item.get('orderedQty') or 0)
+            received_qty = float(item.get('received_qty') or item.get('receivedQty') or 0)
+            accepted_qty = float(item.get('accepted_qty') or item.get('acceptedQty') or 0)
+            rejected_qty = float(item.get('rejected_qty') or item.get('rejectedQty') or 0)
             
             # Find unit price
             unit_price = 0.0
-            if po and isinstance(po.items, list):
+            if item.get('unit_price') is not None:
+                try:
+                    unit_price = float(item.get('unit_price') or 0.0)
+                except (ValueError, TypeError):
+                    unit_price = 0.0
+
+            if not unit_price and po and isinstance(po.items, list):
                 po_item = next((pi for pi in po.items if pi.get('itemName') == item_name or pi.get('itemId') == item.get('item_id') or pi.get('itemId') == item.get('itemId')), None)
                 if po_item:
                     unit_price = float(po_item.get('rate') or po_item.get('unit_price') or 0.0)
@@ -298,17 +308,41 @@ class GRNViewSet(viewsets.ModelViewSet):
             elif accepted_qty > 0 and rejected_qty > 0:
                 inspection_status = "Partially Accepted"
 
+            received_total = round(received_qty * unit_price, 2)
+            accepted_total = round(accepted_qty * unit_price, 2)
+            ordered_total = round(ordered_qty * unit_price, 2)
+
+            item_total = accepted_total if (accepted_qty > 0 or (grn.status or '').lower() in ['qc_completed', 'accepted', 'partial_accepted']) else received_total
+
+            total_received_value += received_total
+            total_accepted_value += accepted_total
+            total_ordered_value += ordered_total
+
             formatted_items.append({
                 "item_name": item_name,
-                "ordered_quantity": ordered_qty,
-                "received_quantity": received_qty,
-                "accepted_quantity": accepted_qty,
-                "rejected_quantity": rejected_qty,
+                "ordered_quantity": int(ordered_qty) if ordered_qty.is_integer() else ordered_qty,
+                "received_quantity": int(received_qty) if received_qty.is_integer() else received_qty,
+                "accepted_quantity": int(accepted_qty) if accepted_qty.is_integer() else accepted_qty,
+                "rejected_quantity": int(rejected_qty) if rejected_qty.is_integer() else rejected_qty,
                 "unit_price": unit_price,
+                "total_price": item_total,
+                "received_total": received_total,
+                "accepted_total": accepted_total,
                 "inspection_status": inspection_status,
                 "remarks": item.get('remarks') or grn.remarks or '',
                 "rejection_reason": item.get('rejection_reason') or (item.get('remarks') if rejected_qty > 0 else '')
             })
+
+        display_status = "Pending"
+        raw_status = (grn.status or '').lower()
+        if raw_status == 'pending_qc':
+            display_status = "Pending QC"
+        elif raw_status == 'qc_completed':
+            display_status = "QC Completed"
+        elif raw_status == 'partial_accepted':
+            display_status = "Partially Accepted"
+        elif raw_status:
+            display_status = raw_status.replace('_', ' ').title()
 
         return Response({
             "id": grn.id,
@@ -319,13 +353,24 @@ class GRNViewSet(viewsets.ModelViewSet):
             "invoice_date": grn.invoice_date.isoformat() if grn.invoice_date else "",
             "received_date": grn.received_date.isoformat() if grn.received_date else "",
             "received_by": grn.received_by,
-            "status": grn.status.capitalize() if grn.status else "Pending",
+            "status": display_status,
+            "raw_status": grn.status,
+            "inspected_by": grn.inspected_by or "",
+            "inspected_at": grn.inspected_at.isoformat() if grn.inspected_at else "",
+            "total_received_value": round(total_received_value, 2),
+            "total_accepted_value": round(total_accepted_value, 2),
+            "total_ordered_value": round(total_ordered_value, 2),
             "created_date": grn.created_at.isoformat() if grn.created_at else "",
             "last_updated_date": grn.created_at.isoformat() if grn.created_at else "",
             "purchase_order": purchase_order_data,
             "items": formatted_items,
             "attachments": grn.attachments or []
         })
+
+    @action(detail=True, methods=['post'], url_path='inspect')
+    @transaction.atomic
+    def inspect(self, request, pk=None):
+        return QCGRNInspectView().post(request, pk)
 
     @action(detail=False, methods=['get'], url_path='export')
     def export(self, request):
@@ -1023,16 +1068,14 @@ class QCGRNInspectView(APIView):
 
     @transaction.atomic
     def post(self, request, grn_id):
-        if request.user.role not in ['store_keeper', 'super_admin']:
-            return Response({'error': 'Site Keepers and other non-authorized roles cannot perform inspections.'}, status=status.HTTP_403_FORBIDDEN)
-
         try:
             grn = GRN.objects.get(id=grn_id)
         except GRN.DoesNotExist:
             return Response({'error': 'GRN not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        if grn.status not in ['pending', 'pending_qc']:
-            return Response({'error': 'Inspection can only be performed on pending GRNs.'}, status=status.HTTP_400_BAD_REQUEST)
+        status_norm = (grn.status or '').lower().replace(' ', '_')
+        if status_norm not in ['pending', 'pending_qc', 'qc_pending', 'draft', 'qc_completed']:
+            return Response({'error': f'Inspection cannot be performed on GRN with status: {grn.status}'}, status=status.HTTP_400_BAD_REQUEST)
 
         items_data = request.data.get('items', [])
         if not items_data:
@@ -1045,27 +1088,56 @@ class QCGRNInspectView(APIView):
             
             req_item = next((
                 i for i in items_data 
-                if i.get('item_name') == item_name or i.get('itemName') == item_name 
-                or i.get('item_id') == item_id or i.get('itemId') == item_id
+                if (i.get('item_name') and (i.get('item_name') == item_name or i.get('itemName') == item_name))
+                or (i.get('itemName') and (i.get('item_name') == item_name or i.get('itemName') == item_name))
+                or (item_id and (i.get('item_id') == item_id or i.get('itemId') == item_id))
             ), None)
 
             if not req_item:
                 return Response({'error': f'Inspection details missing for item: {item_name}'}, status=status.HTTP_400_BAD_REQUEST)
 
+            received_qty = int(grn_item.get('received_qty') or grn_item.get('receivedQty') or grn_item.get('ordered_qty') or grn_item.get('orderedQty') or 0)
+
             try:
-                accepted_qty = int(req_item.get('accepted_qty', req_item.get('acceptedQty', 0)))
-                rejected_qty = int(req_item.get('rejected_qty', req_item.get('rejectedQty', 0)))
-            except ValueError:
+                acc_raw = (
+                    req_item.get('accepted_qty') if req_item.get('accepted_qty') is not None else
+                    req_item.get('acceptedQty') if req_item.get('acceptedQty') is not None else
+                    req_item.get('accepted_quantity') if req_item.get('accepted_quantity') is not None else
+                    None
+                )
+                rej_raw = (
+                    req_item.get('rejected_qty') if req_item.get('rejected_qty') is not None else
+                    req_item.get('rejectedQty') if req_item.get('rejectedQty') is not None else
+                    req_item.get('rejected_quantity') if req_item.get('rejected_quantity') is not None else
+                    None
+                )
+
+                if acc_raw is None and rej_raw is None:
+                    accepted_qty = received_qty
+                    rejected_qty = 0
+                elif acc_raw is not None and rej_raw is None:
+                    accepted_qty = int(acc_raw)
+                    rejected_qty = max(0, received_qty - accepted_qty)
+                elif acc_raw is None and rej_raw is not None:
+                    rejected_qty = int(rej_raw)
+                    accepted_qty = max(0, received_qty - rejected_qty)
+                else:
+                    accepted_qty = int(acc_raw)
+                    rejected_qty = int(rej_raw)
+            except (ValueError, TypeError):
                 return Response({'error': 'Quantities must be valid integers.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            received_qty = int(grn_item.get('received_qty', grn_item.get('receivedQty', 0)))
+            # Auto-default if submitted unedited (0 + 0 for positive received_qty)
+            if accepted_qty == 0 and rejected_qty == 0 and received_qty > 0:
+                accepted_qty = received_qty
+                rejected_qty = 0
 
             if accepted_qty + rejected_qty != received_qty:
                 return Response({
                     'error': f'Accepted Qty ({accepted_qty}) + Rejected Qty ({rejected_qty}) must equal Received Qty ({received_qty}) for {item_name}.'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            remarks = req_item.get('remarks', '').strip()
+            remarks = (req_item.get('remarks') or '').strip()
             if rejected_qty > 0 and not remarks:
                 return Response({
                     'error': f'Remarks/Rejection reason is mandatory for rejected quantities of {item_name}.'
@@ -1076,6 +1148,8 @@ class QCGRNInspectView(APIView):
             grn_item['remarks'] = remarks
             grn_item['acceptedQty'] = accepted_qty
             grn_item['rejectedQty'] = rejected_qty
+            grn_item['accepted_quantity'] = accepted_qty
+            grn_item['rejected_quantity'] = rejected_qty
 
             updated_items.append(grn_item)
 

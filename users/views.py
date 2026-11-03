@@ -454,3 +454,120 @@ class ChangePasswordFirstLoginView(APIView):
             'message': 'Password changed successfully',
             'user': serializer.data
         }, status=status.HTTP_200_OK)
+
+
+import random
+from django.core.cache import cache
+from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
+from django.conf import settings
+from django.core.mail import send_mail
+from django.utils.html import strip_tags
+
+
+class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            return Response({'error': 'No account registered with this email address.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Generate 6-digit numeric OTP code
+        code = f"{random.randint(100000, 999999)}"
+        signer = TimestampSigner(salt='password-reset-salt')
+        reset_token = signer.sign(f"{user.email.lower()}:{code}")
+        cache.set(f"pwd_reset_{user.email.lower()}", code, timeout=900)
+
+        # Attempt to send branded email
+        email_sent = False
+        try:
+            from utils.email_helper import get_email_base_html
+            subject = "FIFC - Password Reset Verification Code"
+            content_html = f'''
+            <p>Dear {user.name or 'User'},</p>
+            <p>We received a request to reset your password for your FIFC Procurement Management portal account.</p>
+            <div style="background-color:#F3F4F6;border:1px solid #E5E7EB;border-radius:8px;padding:20px;margin:24px 0;text-align:center;">
+              <p style="margin:0 0 8px 0;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:700;">Your Verification Code</p>
+              <div style="font-size:32px;font-weight:800;letter-spacing:6px;color:#1B365D;">{code}</div>
+              <p style="margin:10px 0 0 0;font-size:12px;color:#9CA3AF;">Valid for 15 minutes. Do not share this code with anyone.</p>
+            </div>
+            <p style="font-size:13px;color:#6B7280;">If you did not request a password reset, you can safely ignore this email.</p>
+            '''
+            html_message = get_email_base_html(subject, content_html)
+            plain_message = strip_tags(html_message)
+            send_mail(
+                subject=subject,
+                message=plain_message,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'FIFC Procurement <gauravkokane420op@gmail.com>'),
+                recipient_list=[user.email],
+                html_message=html_message,
+                fail_silently=False
+            )
+            email_sent = True
+        except Exception as e:
+            print(f"PASSWORD RESET EMAIL FAILED: {e}")
+
+        resp_data = {
+            'success': True,
+            'message': f'Verification code sent to {email}.',
+            'reset_token': reset_token,
+            'email_sent': email_sent
+        }
+        if settings.DEBUG or not email_sent:
+            resp_data['dev_code'] = code
+
+        return Response(resp_data, status=status.HTTP_200_OK)
+
+
+class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        code = str(request.data.get('code', '')).strip()
+        reset_token = request.data.get('reset_token', '').strip()
+        new_password = request.data.get('new_password', '').strip()
+
+        if not email or not code or not new_password:
+            return Response({'error': 'Email, verification code, and new password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(new_password) < 6:
+            return Response({'error': 'Password must be at least 6 characters long.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        is_valid = False
+        if reset_token:
+            try:
+                signer = TimestampSigner(salt='password-reset-salt')
+                unsigned = signer.unsign(reset_token, max_age=900)
+                token_email, token_code = unsigned.split(':', 1)
+                if token_email.lower() == email.lower() and token_code == code:
+                    is_valid = True
+            except (BadSignature, SignatureExpired, Exception):
+                pass
+
+        if not is_valid:
+            cached_code = cache.get(f"pwd_reset_{email.lower()}")
+            if cached_code and str(cached_code).strip() == code:
+                is_valid = True
+
+        if not is_valid:
+            return Response({'error': 'Invalid or expired verification code. Please request a new code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.force_password_change = False
+        user.save()
+
+        cache.delete(f"pwd_reset_{email.lower()}")
+
+        return Response({
+            'success': True,
+            'message': 'Password has been reset successfully. Please log in with your new password.'
+        }, status=status.HTTP_200_OK)

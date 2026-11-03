@@ -315,7 +315,26 @@ class ReportsDataView(APIView):
             low_stock_items = Item.objects.filter(current_stock__lte=F('min_stock_level')).count()
             dead_stock_items = Item.objects.filter(current_stock=0).count()
 
+            # 8. Dynamic Periods
+            current_date = datetime.now()
+            if current_date.month >= 4:
+                curr_fy_start = current_date.year
+            else:
+                curr_fy_start = current_date.year - 1
+            
+            curr_fy_label = f"FY {curr_fy_start}-{str(curr_fy_start+1)[-2:]}"
+            last_fy_label = f"FY {curr_fy_start-1}-{str(curr_fy_start)[-2:]}"
+            
+            available_periods = [
+                {'label': curr_fy_label, 'value': 'current-fy'},
+                {'label': last_fy_label, 'value': 'last-fy'},
+                {'label': 'Year to Date', 'value': 'ytd'},
+                {'label': 'Quarter to Date', 'value': 'qtd'},
+                {'label': 'Month to Date', 'value': 'mtd'},
+            ]
+
             return Response({
+                'availablePeriods': available_periods,
                 'spendByCategory': spend_by_category,
                 'towerWiseSpend': tower_wise_spend,
                 'vendorPerformance': vendor_performance,

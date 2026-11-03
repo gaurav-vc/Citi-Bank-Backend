@@ -666,13 +666,30 @@ def trigger_next_approver_email(step, doc):
             token.set_exp(lifetime=timedelta(seconds=token_lifetime_secs))
             
             portal_link = f"{portal_link}?token={str(token)}"
+        # Direct relative path for in-app navigation
+        mod_norm = module_name.lower().replace('-', '_').rstrip('s')
+        if mod_norm in ('payment_proposal', 'payment_proposals', 'payment'):
+            notif_link = f"/payments/proposals/{document_id}"
+        elif mod_norm in ('invoice', 'invoices', 'billing'):
+            notif_link = f"/billing/invoices/{document_id}"
+        elif mod_norm in ('rfq', 'rfqs'):
+            notif_link = f"/rfqs/{document_id}"
+        elif mod_norm in ('purchase_order', 'purchase_orders', 'order'):
+            notif_link = f"/orders/{document_id}"
+        elif mod_norm in ('grn', 'grns'):
+            notif_link = f"/grns/{document_id}"
+        elif mod_norm in ('indent', 'indents', 'requisition'):
+            notif_link = f"/indents/{document_id}"
+        else:
+            notif_link = "/dashboard"
+
         try:
             from core.models import Notification
             Notification.objects.create(
                 user=user,
                 title=title,
                 message=f"A {module_name} document ({document_id}) requires your approval.",
-                link_url=portal_link.split('?')[0]  # Store base link in UI
+                link_url=notif_link
             )
         except Exception as e:
             logger.error(f"Failed to create real-time notification: {e}")
