@@ -583,7 +583,7 @@ class AIInsightsView(APIView):
                     'type': 'opportunity',
                     'title': 'Category Spend Insight',
                     'description': f"Top spending category: {top_cat['category']} with total value of ₹{float(top_cat['s']):,.2f}.",
-                    'metric': f"₹{float(top_cat['s'])/1000:,.0f}K",
+                    'metric': f"₹{float(top_cat['s']):,.2f}",
                     'confidence': 95,
                     'action': 'Review category budget'
                 })

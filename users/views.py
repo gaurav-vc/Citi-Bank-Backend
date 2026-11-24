@@ -359,6 +359,69 @@ class UserViewSet(viewsets.ModelViewSet):
         user.delete()
         return Response({"success": True, "message": "User rejected successfully"})
 
+    @action(detail=True, methods=['post'], url_path='change-password')
+    def change_password(self, request, pk=None):
+        user = self.get_object()
+        new_password = request.data.get('password') or request.data.get('new_password')
+        if not new_password:
+            return Response({"error": "New password is required"}, status=status.HTTP_400_BAD_REQUEST)
+        user.set_password(new_password)
+        user.force_password_change = False
+        user.save()
+
+        send_email = request.data.get('send_email', False)
+        email_sent = False
+        if send_email:
+            try:
+                from utils.email_helper import send_employee_onboarding_email
+                send_employee_onboarding_email(
+                    email=user.email,
+                    name=user.name,
+                    password=new_password,
+                    role=user.role,
+                    user=user
+                )
+                email_sent = True
+            except Exception as e:
+                print("EMAIL SEND ERROR:", str(e))
+
+        return Response({
+            "success": True,
+            "message": "Password changed successfully." + (" Credentials sent to email." if email_sent else "")
+        })
+
+    @action(detail=True, methods=['post'], url_path='send-credentials')
+    def send_credentials(self, request, pk=None):
+        user = self.get_object()
+        password = request.data.get('password')
+        if not password:
+            import secrets, string
+            alphabet = string.ascii_letters + string.digits + "@#$"
+            password = ''.join(secrets.choice(alphabet) for _ in range(10))
+            user.set_password(password)
+            user.force_password_change = False
+            user.save()
+
+        try:
+            from utils.email_helper import send_employee_onboarding_email
+            send_employee_onboarding_email(
+                email=user.email,
+                name=user.name,
+                password=password,
+                role=user.role,
+                user=user
+            )
+            return Response({
+                "success": True,
+                "message": f"Credentials successfully triggered to {user.email}.",
+                "temp_password": password
+            })
+        except Exception as e:
+            return Response({
+                "warning": f"Password was set but email delivery encountered an issue: {str(e)}",
+                "temp_password": password
+            }, status=status.HTTP_200_OK)
+
 
 
 class CompatibilityAssignUserView(APIView):

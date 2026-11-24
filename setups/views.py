@@ -140,6 +140,7 @@ class AssignUserView(APIView):
 
 from .models import InventoryMasterField
 from .serializers import InventoryMasterFieldSerializer
+from organizations.models import Organization
 
 class InventoryMasterFieldViewSet(viewsets.ModelViewSet):
     queryset = InventoryMasterField.objects.all()
@@ -152,3 +153,84 @@ class InventoryMasterFieldViewSet(viewsets.ModelViewSet):
         if field_type:
             queryset = queryset.filter(field_type=field_type)
         return queryset
+
+class BrandingView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        user = request.user if (request.user and request.user.is_authenticated) else None
+        org = None
+        if user:
+            profile = getattr(user, 'profile', None)
+            if profile and profile.organization_id:
+                org = Organization.objects.filter(id=profile.organization_id).first()
+        if not org:
+            org = Organization.objects.first()
+
+        brand_name = (org.company_name or org.name) if org else "CitiBank CampusSpend"
+        brand_logo = (org.logo or "") if org else ""
+        tagline = "Enterprise Procurement & Campus Spend"
+
+        return Response({
+            "brand_name": brand_name,
+            "brand_logo": brand_logo,
+            "tagline": tagline,
+            "organization_id": org.id if org else None
+        })
+
+    def post(self, request):
+        if not request.user or not request.user.is_authenticated:
+            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        user = request.user
+        # Check permissions dynamically without hardcoding role names
+        if user.role != 'super_admin':
+            from setups.models import RoleAccessMapping
+            profile = getattr(user, 'profile', None)
+            dept = getattr(profile, 'department', None) if profile else None
+            mapping = RoleAccessMapping.objects.filter(role__role_name__iexact=user.role)
+            if dept:
+                mapping = mapping.filter(department=dept)
+            role_map = mapping.first()
+            if role_map and role_map.permissions:
+                p = role_map.permissions.get('core:branding')
+                if p and p.get('modify') is False and p.get('create') is False and p.get('view') is False:
+                    return Response({"error": "You do not have permission to modify branding."}, status=status.HTTP_403_FORBIDDEN)
+
+        brand_name = request.data.get('brand_name')
+        brand_logo = request.data.get('brand_logo')
+        tagline = request.data.get('tagline', '')
+
+        user = request.user
+        profile = getattr(user, 'profile', None)
+        org = None
+        if profile and profile.organization_id:
+            org = Organization.objects.filter(id=profile.organization_id).first()
+        if not org:
+            org = Organization.objects.first()
+
+        if org:
+            update_fields = ['updated_at']
+            if brand_name:
+                org.company_name = brand_name
+                update_fields.append('company_name')
+                try:
+                    org.name = brand_name
+                    update_fields.append('name')
+                except Exception:
+                    pass
+            if brand_logo is not None:
+                org.logo = brand_logo
+                update_fields.append('logo')
+            
+            try:
+                org.save(update_fields=list(set(update_fields)))
+            except Exception:
+                org.save()
+
+        return Response({
+            "message": "Branding updated successfully",
+            "brand_name": brand_name or (org.company_name if org else "CitiBank CampusSpend"),
+            "brand_logo": brand_logo if brand_logo is not None else (org.logo if org else ""),
+            "tagline": tagline
+        })

@@ -56,6 +56,8 @@ MODULE_CONFIG_TO_PERMISSION_KEYS = {
     'workflows': 'procurement:workflows',
     'procurement:ai': 'procurement:ai',
     'ai': 'procurement:ai',
+    'core:branding': 'core:branding',
+    'branding': 'core:branding',
 }
 
 # Default permissions granted per module key when a module is enabled

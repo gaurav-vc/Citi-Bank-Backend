@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     AppFeatureViewSet, RoleAccessMappingViewSet, FeatureMasterViewSet,
-    UsersHierarchyView, AssignUserView
+    UsersHierarchyView, AssignUserView, BrandingView
 )
 from organizations.views import OrganizationViewSet, SiteViewSet, DepartmentViewSet
 
@@ -27,5 +27,7 @@ urlpatterns = [
     path('users-hierarchy/', UsersHierarchyView.as_view(), name='users-hierarchy-slash'),
     path('assign-user', AssignUserView.as_view(), name='assign-user'),
     path('assign-user/', AssignUserView.as_view(), name='assign-user-slash'),
+    path('branding', BrandingView.as_view(), name='setup-branding'),
+    path('branding/', BrandingView.as_view(), name='setup-branding-slash'),
     path('role-access-mappings/sync_mapping', RoleAccessMappingViewSet.as_view({'post': 'sync_mapping'}), name='sync-mapping'),
 ]
